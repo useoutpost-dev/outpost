@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm *)",
+      "Bash(git *)",
+      "Bash(docker *)",
+      "Read(**)",
+      "Edit(apps/**)",
+      "Edit(packages/**)"
+    ],
+    "deny": [
+      "Read(.env*)",
+      "Edit(.env*)",
+      "Bash(rm -rf *)"
+    ]
+  }
+}
