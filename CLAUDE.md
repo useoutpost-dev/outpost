@@ -1,7 +1,7 @@
 # Outpost — CLAUDE.md
 
 Self-hosted, browser-accessible cloud environment for running Claude Code in isolated sandboxes.
-Repo: `getoutpost/outpost` (open core). Paid modules live in a separate private repo (`getoutpost/outpost-pro`).
+Repo: `useoutpost-dev/outpost` (open core). Paid modules live in a separate private repo (`useoutpost-dev/outpost-pro` — org unverified; confirm before use).
 
 ## Role of the main thread (Fable 5)
 

@@ -5,21 +5,36 @@ description: Field Console visual identity — tokens, typography, motion rules.
 
 # Field Console
 
-## Tokens (Tailwind theme names)
-- `basalt`  #14181B — app background
-- `console` #1E252A — panels, cards, terminal chrome
-- `bonewhite` #E9E5DC — primary text
-- `ash`     #8B939B — secondary text, borders
-- `beacon`  #F2A93B — accent: active states, usage bars, CTAs, cursor
+Palette story: field equipment — olive-graphite housing, bone paper, one amber
+indicator lamp. Deliberately NOT blue-slate dev-tool dark.
 
-## Typography
-- Display/headings: Clash Grotesk
-- Body/UI: Inter
-- Terminal + telemetry numbers: JetBrains Mono
+## Tokens (Tailwind theme names)
+- `basalt`  #141610 — app background (olive-black)
+- `console` #1D2018 — panels, cards, terminal chrome
+- `bonewhite` #EAE6D9 — primary text (warm paper, never pure white)
+- `ash`     #8B9283 — secondary text, borders (desaturated sage-grey)
+- `beacon`  #F2A93B — accent: primary CTA, usage bars, cursor
+- `moss`    #8CA870 — status: running / success only
+- `rust`    #C05B4D — status: errors / destructive actions only
+
+moss and rust are status colors, never decoration. Chips and confirm-destroy only.
+
+## Typography (all self-hosted, no CDN)
+- Display/headings: Clash Grotesk (Fontshare)
+- Body/UI: Switzer (Fontshare — pairs with Clash Grotesk, holds at 12px density)
+- Terminal + telemetry numbers: IBM Plex Mono (full box-drawing coverage; true italic)
+
+## App shell (identical on every authenticated screen, incl. Terminal)
+56px top bar on `console`, 1px `ash`/20% bottom border. Left: OUTPOST wordmark
+(Clash Grotesk, tracked out). Nav: Sandboxes / Usage / Settings — `ash` default,
+`bonewhite` active (NO beacon on nav; beacon belongs to the screen's one primary
+action). Right: usage mini-readout (Plex Mono) + GitHub avatar. Login and the
+onboarding overlay are the only shell-less surfaces.
 
 ## Rules
 - Never hardcode hex in components. Tokens only.
 - Beacon is scarce: one amber focus per screen. Usage bars are the exception.
+- Navbar/shell is ONE shared component — screens render inside it, never rebuild it.
 - Terminal is the hero — chrome stays minimal around it.
 - Motion: Framer Motion. 200–400ms, ease-out, opacity+translate. Onboarding may be
   richer (staged reveals, spotlight on layout regions) but must be skippable and
