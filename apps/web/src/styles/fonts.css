@@ -1,0 +1,42 @@
+/*
+ * Field Console — self-hosted fonts
+ *
+ * Font files ship in Phase 7. Until then, fallbacks in tailwind.config.ts carry the UI.
+ * Place .woff2 files in apps/web/public/fonts/ once licensed copies are available:
+ *   - ClashGrotesk-Variable.woff2  (Fontshare)
+ *   - Switzer-Variable.woff2       (Fontshare)
+ *   - IBMPlexMono-Regular.woff2    (IBM / Google Fonts open license)
+ *   - IBMPlexMono-Italic.woff2
+ */
+
+@font-face {
+  font-family: 'Clash Grotesk';
+  src: url('/fonts/ClashGrotesk-Variable.woff2') format('woff2');
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/Switzer-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/IBMPlexMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/IBMPlexMono-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}

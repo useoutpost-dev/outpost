@@ -1,0 +1,10 @@
+{
+  "name": "@outpost/sandbox-image",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "lint": "echo 'no lint for sandbox-image'",
+    "typecheck": "echo 'no typecheck for sandbox-image'",
+    "test": "echo 'no tests for sandbox-image'"
+  }
+}
