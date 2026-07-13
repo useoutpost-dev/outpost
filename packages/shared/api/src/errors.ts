@@ -6,6 +6,7 @@ export type OutpostErrorCode =
   | 'CONFLICT'
   | 'TIMEOUT'
   | 'PROVIDER_ERROR'
+  | 'UPSTREAM_ERROR'
   | 'INTERNAL';
 
 export class OutpostError extends Error {

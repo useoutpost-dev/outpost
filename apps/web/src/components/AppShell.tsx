@@ -2,9 +2,10 @@ import type { ReactNode } from 'react';
 
 interface AppShellProps {
   children?: ReactNode;
+  login?: string;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, login }: AppShellProps) {
   return (
     <div className="flex min-h-screen flex-col bg-basalt">
       {/* Top bar: 56px, console bg, 1px ash/20% bottom border */}
@@ -14,8 +15,12 @@ export function AppShell({ children }: AppShellProps) {
           OUTPOST
         </span>
 
-        {/* Right side — empty for now */}
-        <div className="ml-auto" />
+        {/* Right side — login handle when present */}
+        <div className="ml-auto">
+          {login && (
+            <span className="font-mono text-xs text-ash">{login}</span>
+          )}
+        </div>
       </header>
 
       {/* Page content */}
