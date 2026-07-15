@@ -3,7 +3,7 @@ import { OutpostError } from '@outpost/shared-api';
 import { buildApp } from '../index.js';
 import { createSession } from '../auth/auth.repo.js';
 import { generateSessionToken, SESSION_COOKIE_NAME } from '../auth/session.js';
-import { makeTestDb, testGithubConfig } from './helpers.js';
+import { makeTestDb, testGithubConfig, makeFakeSandboxService } from './helpers.js';
 
 const LOGIN = 'octocat';
 const GITHUB_ID = 583231;
@@ -18,7 +18,7 @@ afterEach(() => {
 /** Build an app with an authenticated session cookie helper for gated routes. */
 function authedApp() {
   const db = makeTestDb();
-  const app = buildApp({ db, githubConfig: testGithubConfig });
+  const app = buildApp({ db, githubConfig: testGithubConfig, sandboxService: makeFakeSandboxService(db) });
   const token = generateSessionToken();
   createSession(db, token, { githubId: GITHUB_ID, githubLogin: LOGIN });
   return { app, cookie: `${SESSION_COOKIE_NAME}=${token}` };

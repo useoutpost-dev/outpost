@@ -28,3 +28,25 @@ export const sessions = sqliteTable('sessions', {
 
 export type SessionRow = typeof sessions.$inferSelect;
 export type NewSessionRow = typeof sessions.$inferInsert;
+
+export const sandboxes = sqliteTable('sandboxes', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  provider: text('provider').notNull(),
+  // provider machine id, null until the machine is created
+  providerRef: text('provider_ref'),
+  // provider volume id, persisted so failed-create cleanup and destroy can find it
+  volumeRef: text('volume_ref'),
+  // FK to accounts lands in Phase 4
+  accountId: text('account_id'),
+  status: text('status').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type SandboxRow = typeof sandboxes.$inferSelect;
+export type NewSandboxRow = typeof sandboxes.$inferInsert;

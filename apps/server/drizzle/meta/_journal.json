@@ -15,6 +15,13 @@
       "when": 1783901649512,
       "tag": "0001_tan_violations",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783904314333,
+      "tag": "0002_tired_deathbird",
+      "breakpoints": true
     }
   ]
 }

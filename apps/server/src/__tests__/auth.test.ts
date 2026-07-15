@@ -9,7 +9,7 @@ import {
   SESSION_COOKIE_NAME,
 } from '../auth/session.js';
 import { STATE_COOKIE_NAME } from '../auth/github.js';
-import { makeTestDb, testGithubConfig, stubFetcher } from './helpers.js';
+import { makeTestDb, testGithubConfig, stubFetcher, makeFakeSandboxService } from './helpers.js';
 
 const LOGIN = 'octocat';
 const GITHUB_ID = 583231;
@@ -24,7 +24,12 @@ afterEach(() => {
 
 function build(user: { id: number; login: string } = { id: GITHUB_ID, login: LOGIN }) {
   const db = makeTestDb();
-  const app = buildApp({ db, githubConfig: testGithubConfig, fetcher: stubFetcher(user) });
+  const app = buildApp({
+    db,
+    githubConfig: testGithubConfig,
+    fetcher: stubFetcher(user),
+    sandboxService: makeFakeSandboxService(db),
+  });
   return { db, app };
 }
 
