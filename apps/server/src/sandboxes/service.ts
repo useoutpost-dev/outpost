@@ -1,0 +1,208 @@
+import crypto from 'node:crypto';
+import { OutpostError } from '@outpost/shared-api';
+import type { SandboxProvider, SandboxStatus, SandboxResources } from '@outpost/shared-api';
+import type { Db } from '../db/client.js';
+import { events } from '../db/schema.js';
+import {
+  insertSandbox,
+  updateSandboxStatus,
+  findSandboxById,
+  findSandboxByName,
+  listSandboxes,
+  type SandboxRow,
+} from './sandboxes.repo.js';
+
+type SandboxEventKind =
+  | 'sandbox.creating'
+  | 'sandbox.running'
+  | 'sandbox.stopped'
+  | 'sandbox.destroyed'
+  | 'sandbox.error';
+
+/** Legal transitions: from → allowed next states */
+const LEGAL: Record<SandboxStatus, SandboxStatus[]> = {
+  creating: ['running', 'error'],
+  running: ['stopped', 'destroyed', 'error'],
+  stopped: ['destroyed', 'error'],
+  error: ['destroyed'],
+  destroyed: [],
+};
+
+function assertTransition(from: SandboxStatus, to: SandboxStatus): void {
+  if (!LEGAL[from].includes(to)) {
+    throw new OutpostError('CONFLICT', 409, 'illegal sandbox state transition');
+  }
+}
+
+function appendSandboxEvent(
+  db: Db,
+  kind: SandboxEventKind,
+  sandboxId: string | null,
+  payload: { provider: string; providerRef: string | null },
+): void {
+  db.insert(events).values({ kind, sandboxId, payload }).run();
+}
+
+export interface SandboxServiceDeps {
+  db: Db;
+  provider: SandboxProvider;
+  config: { image: string; collectorEndpoint: string };
+}
+
+const DEFAULT_RESOURCES: SandboxResources = { cpus: 2, memoryMb: 2048, diskGb: 10 };
+
+export interface SandboxPublic {
+  id: string;
+  name: string;
+  provider: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function toPublic(row: SandboxRow): SandboxPublic {
+  return {
+    id: row.id,
+    name: row.name,
+    provider: row.provider,
+    status: row.status,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export interface CreateSandboxInput {
+  name: string;
+  resources?: Partial<SandboxResources>;
+}
+
+export function createSandboxService(deps: SandboxServiceDeps) {
+  const { db, provider, config } = deps;
+
+  async function create(input: CreateSandboxInput): Promise<SandboxPublic> {
+    const { name, resources: partialResources } = input;
+    const resources: SandboxResources = { ...DEFAULT_RESOURCES, ...partialResources };
+
+    // Duplicate name check
+    const existing = findSandboxByName(db, name);
+    if (existing) {
+      throw new OutpostError('CONFLICT', 409, 'sandbox name already exists');
+    }
+
+    const id = crypto.randomUUID();
+
+    // Insert row + event as 'creating'
+    insertSandbox(db, { id, name, provider: 'fly', status: 'creating' });
+    appendSandboxEvent(db, 'sandbox.creating', id, { provider: 'fly', providerRef: null });
+
+    // Compose OTEL env — provider-agnostic
+    // Phase 4: when accounts land, add account.id to OTEL_RESOURCE_ATTRIBUTES: `sandbox.id=${id},account.id=${accountId}`
+    const env: Record<string, string> = {
+      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+      OTEL_EXPORTER_OTLP_ENDPOINT: config.collectorEndpoint,
+      OTEL_RESOURCE_ATTRIBUTES: `sandbox.id=${id}`,
+      // OTEL_LOG_USER_PROMPTS is intentionally never set
+    };
+
+    try {
+      const sandbox = await provider.create({
+        name,
+        image: config.image,
+        env,
+        resources,
+        volumes: [],
+      });
+
+      // Transition to running
+      assertTransition('creating', 'running');
+      updateSandboxStatus(db, id, 'running', {
+        providerRef: sandbox.id,
+        volumeRef: sandbox.volumeRef ?? null,
+      });
+      appendSandboxEvent(db, 'sandbox.running', id, { provider: 'fly', providerRef: sandbox.id });
+    } catch (err) {
+      // If err is already an OutpostError from a transition guard (won't happen in create),
+      // still transition to error. For provider errors, also transition and rethrow.
+      updateSandboxStatus(db, id, 'error');
+      appendSandboxEvent(db, 'sandbox.error', id, { provider: 'fly', providerRef: null });
+      throw err;
+    }
+
+    const row = findSandboxById(db, id)!;
+    return toPublic(row);
+  }
+
+  async function stop(id: string): Promise<SandboxPublic> {
+    const row = findSandboxById(db, id);
+    if (!row) throw new OutpostError('NOT_FOUND', 404, 'sandbox not found');
+
+    assertTransition(row.status as SandboxStatus, 'stopped');
+
+    // A running row always has a providerRef; a null here means DB corruption,
+    // so fail with a typed error instead of a bare runtime throw.
+    if (!row.providerRef) {
+      throw new OutpostError('INTERNAL', 500, 'sandbox has no provider reference');
+    }
+
+    try {
+      await provider.stop(row.providerRef);
+    } catch (err) {
+      updateSandboxStatus(db, id, 'error');
+      appendSandboxEvent(db, 'sandbox.error', id, {
+        provider: 'fly',
+        providerRef: row.providerRef ?? null,
+      });
+      throw err;
+    }
+
+    updateSandboxStatus(db, id, 'stopped');
+    appendSandboxEvent(db, 'sandbox.stopped', id, {
+      provider: 'fly',
+      providerRef: row.providerRef ?? null,
+    });
+
+    return toPublic(findSandboxById(db, id)!);
+  }
+
+  async function destroy(id: string): Promise<SandboxPublic> {
+    const row = findSandboxById(db, id);
+    if (!row) throw new OutpostError('NOT_FOUND', 404, 'sandbox not found');
+
+    assertTransition(row.status as SandboxStatus, 'destroyed');
+
+    if (row.providerRef) {
+      try {
+        await provider.destroy(row.providerRef);
+      } catch (err) {
+        updateSandboxStatus(db, id, 'error');
+        appendSandboxEvent(db, 'sandbox.error', id, {
+          provider: 'fly',
+          providerRef: row.providerRef,
+        });
+        throw err;
+      }
+    }
+
+    updateSandboxStatus(db, id, 'destroyed');
+    appendSandboxEvent(db, 'sandbox.destroyed', id, {
+      provider: 'fly',
+      providerRef: row.providerRef ?? null,
+    });
+
+    return toPublic(findSandboxById(db, id)!);
+  }
+
+  function get(id: string): SandboxPublic {
+    const row = findSandboxById(db, id);
+    if (!row) throw new OutpostError('NOT_FOUND', 404, 'sandbox not found');
+    return toPublic(row);
+  }
+
+  function list(): SandboxPublic[] {
+    return listSandboxes(db).map(toPublic);
+  }
+
+  return { create, stop, destroy, get, list };
+}
+
+export type SandboxService = ReturnType<typeof createSandboxService>;

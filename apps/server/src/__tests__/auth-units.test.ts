@@ -188,12 +188,19 @@ describe('boot config', () => {
   });
 
   it('returns config when everything is set', () => {
-    const { githubConfig } = loadBootConfig({
+    const config = loadBootConfig({
       OUTPOST_ALLOWED_GITHUB_IDS: '1',
       GITHUB_CLIENT_ID: 'id',
       GITHUB_CLIENT_SECRET: 'secret',
       OUTPOST_BASE_URL: 'https://x',
+      FLY_API_TOKEN: 'fly-token',
+      FLY_SANDBOX_APP: 'my-sandbox-app',
+      FLY_REGION: 'iad',
+      OUTPOST_SANDBOX_IMAGE: 'ghcr.io/outpost/sandbox:latest',
+      OUTPOST_COLLECTOR_ENDPOINT: 'http://collector:4318',
     });
-    expect(githubConfig.clientId).toBe('id');
+    expect(config.githubConfig.clientId).toBe('id');
+    expect(config.fly.apiToken).toBe('fly-token');
+    expect(config.sandbox.image).toBe('ghcr.io/outpost/sandbox:latest');
   });
 });

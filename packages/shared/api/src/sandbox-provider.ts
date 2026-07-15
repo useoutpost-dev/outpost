@@ -26,6 +26,8 @@ export interface Sandbox {
   status: SandboxStatus;
   createdAt: string;
   privateIp?: string;
+  /** Provider reference to the persistent workspace volume, when one exists. */
+  volumeRef?: string;
 }
 
 export interface ExecResult {

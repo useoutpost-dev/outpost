@@ -6,6 +6,8 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as schema from '../db/schema.js';
 import type { Db } from '../db/client.js';
 import type { GithubConfig } from '../auth/github.js';
+import type { SandboxProvider, Sandbox, SandboxSpec } from '@outpost/shared-api';
+import { createSandboxService } from '../sandboxes/service.js';
 
 const migrationsFolder = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -44,4 +46,66 @@ export function stubFetcher(user: { id: number; login: string }): Fetcher {
       headers: { 'Content-Type': 'application/json' },
     });
   };
+}
+
+/** In-memory SandboxProvider for tests — never touches Fly. */
+export function makeFakeProvider(): SandboxProvider & { machines: Map<string, Sandbox> } {
+  const machines = new Map<string, Sandbox>();
+  let counter = 0;
+
+  return {
+    machines,
+
+    async create(spec: SandboxSpec): Promise<Sandbox> {
+      const id = `machine-${++counter}`;
+      const volumeRef = `vol-${counter}`;
+      const sandbox: Sandbox = {
+        id,
+        name: spec.name,
+        status: 'running',
+        createdAt: new Date().toISOString(),
+        volumeRef,
+      };
+      machines.set(id, sandbox);
+      return sandbox;
+    },
+
+    async stop(id: string): Promise<void> {
+      const m = machines.get(id);
+      if (m) machines.set(id, { ...m, status: 'stopped' });
+    },
+
+    async destroy(id: string): Promise<void> {
+      machines.delete(id);
+    },
+
+    async get(id: string): Promise<Sandbox | null> {
+      return machines.get(id) ?? null;
+    },
+
+    async list(): Promise<Sandbox[]> {
+      return Array.from(machines.values());
+    },
+
+    async exec() {
+      return { exitCode: 0, stdout: '', stderr: '' };
+    },
+
+    async mount() {},
+
+    async ports() {
+      return [];
+    },
+  };
+}
+
+export const testSandboxConfig = {
+  image: 'outpost/sandbox:test',
+  collectorEndpoint: 'http://collector.test:4318',
+};
+
+/** Build a sandbox service backed by a fake in-memory provider. */
+export function makeFakeSandboxService(db: Db, provider?: SandboxProvider) {
+  const p = provider ?? makeFakeProvider();
+  return createSandboxService({ db, provider: p, config: testSandboxConfig });
 }

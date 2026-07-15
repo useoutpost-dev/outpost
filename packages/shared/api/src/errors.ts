@@ -5,6 +5,7 @@ export type OutpostErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'TIMEOUT'
+  | 'PROVIDER_UNAVAILABLE'
   | 'PROVIDER_ERROR'
   | 'UPSTREAM_ERROR'
   | 'INTERNAL';
