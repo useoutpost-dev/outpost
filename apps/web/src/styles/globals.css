@@ -9,4 +9,16 @@
   body {
     @apply font-body;
   }
+
+  /* Field Console color tokens exposed as CSS custom properties.
+     Used by term-theme.ts to build the xterm.js theme without hardcoding hex. */
+  :root {
+    --color-basalt:    #141610;
+    --color-console:   #1D2018;
+    --color-bonewhite: #EAE6D9;
+    --color-ash:       #8B9283;
+    --color-beacon:    #F2A93B;
+    --color-moss:      #8CA870;
+    --color-rust:      #C05B4D;
+  }
 }

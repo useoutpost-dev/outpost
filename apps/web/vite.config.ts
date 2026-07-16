@@ -7,6 +7,7 @@ export default defineConfig({
     proxy: {
       '/auth': 'http://localhost:3001',
       '/health': 'http://localhost:3001',
+      '/api': { target: 'http://localhost:3001', ws: true },
     },
   },
 });
