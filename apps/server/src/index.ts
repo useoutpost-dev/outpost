@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
+import websocket from '@fastify/websocket';
 import { OutpostError } from '@outpost/shared-api';
 import { runMigrations } from './db/migrate.js';
 import type { Db } from './db/client.js';
@@ -8,6 +9,9 @@ import { registerAuthGate, parseAllowedIds } from './auth/middleware.js';
 import { registerAuthRoutes } from './auth/routes.js';
 import { registerSandboxRoutes } from './sandboxes/routes.js';
 import type { SandboxService } from './sandboxes/service.js';
+import { registerTerminalRoute } from './terminal/ws.js';
+import type { SessionManager } from './terminal/session-manager.js';
+import { findSandboxById } from './sandboxes/sandboxes.repo.js';
 
 export interface BuildAppOptions {
   db: Db;
@@ -16,6 +20,8 @@ export interface BuildAppOptions {
   fetcher?: Fetcher;
   /** Sandbox service — required in production; tests supply a fake-provider-backed instance. */
   sandboxService: SandboxService;
+  /** Terminal session manager — gates and serves the terminal WS route. */
+  sessionManager: SessionManager;
 }
 
 /**
@@ -29,7 +35,7 @@ export function stripUrlQuery(url: string): string {
 }
 
 export function buildApp(opts: BuildAppOptions) {
-  const { db, githubConfig, fetcher, sandboxService } = opts;
+  const { db, githubConfig, fetcher, sandboxService, sessionManager } = opts;
   const app = Fastify({
     logger: {
       serializers: {
@@ -52,12 +58,28 @@ export function buildApp(opts: BuildAppOptions) {
   });
 
   app.register(cookie);
+  // First-party Fastify WS transport for the terminal route. The global
+  // onRequest auth gate still runs on the upgrade request before the handler.
+  app.register(websocket);
 
   app.get('/health', () => ({ ok: true }));
 
   registerAuthGate(app, db);
   registerAuthRoutes(app, { db, githubConfig, fetcher });
   registerSandboxRoutes(app, { service: sandboxService });
+
+  // WS route registration must be inside a plugin scope that has @fastify/websocket
+  // loaded; register after the plugin above so `{ websocket: true }` is recognized.
+  app.register(async (scope) => {
+    registerTerminalRoute(scope, {
+      sessionManager,
+      lookupSandbox: (id) => {
+        const row = findSandboxById(db, id);
+        if (!row) return undefined;
+        return { status: row.status, terminalToken: row.terminalToken };
+      },
+    });
+  });
 
   return app;
 }
@@ -115,14 +137,26 @@ if (isDirectRun) {
     const { createFlyProvider } = await import('./sandboxes/providers/fly/fly-provider.js');
     const { reconcileOrphans } = await import('./sandboxes/reconcile.js');
     const { createSandboxService } = await import('./sandboxes/service.js');
+    const { createSessionManager } = await import('./terminal/session-manager.js');
 
     const provider = createFlyProvider(config.fly);
 
     // Orphan sweep must complete before routes accept traffic.
     await reconcileOrphans({ db, provider });
 
-    const sandboxService = createSandboxService({ db, provider, config: config.sandbox });
-    const app = buildApp({ db, githubConfig: config.githubConfig, sandboxService });
+    const sessionManager = createSessionManager({
+      provider,
+      getTerminalToken: (id) => findSandboxById(db, id)?.terminalToken ?? null,
+      log: { warn: (m) => console.warn(m), error: (m) => console.error(m) },
+    });
+
+    const sandboxService = createSandboxService({
+      db,
+      provider,
+      config: config.sandbox,
+      onTeardown: (id) => sessionManager.destroy(id),
+    });
+    const app = buildApp({ db, githubConfig: config.githubConfig, sandboxService, sessionManager });
     const port = Number(process.env.PORT ?? 3001);
     await app.listen({ port, host: '0.0.0.0' });
   } catch (err) {

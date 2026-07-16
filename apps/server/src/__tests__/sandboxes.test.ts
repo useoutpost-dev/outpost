@@ -8,6 +8,7 @@ import {
   testGithubConfig,
   makeFakeProvider,
   makeFakeSandboxService,
+  makeStubSessionManager,
   testSandboxConfig,
 } from './helpers.js';
 import { createSandboxService } from '../sandboxes/service.js';
@@ -181,7 +182,12 @@ describe('sandbox service — get / unknown id', () => {
 function authedApp() {
   const db = makeTestDb();
   const sandboxService = makeFakeSandboxService(db);
-  const app = buildApp({ db, githubConfig: testGithubConfig, sandboxService });
+  const app = buildApp({
+    db,
+    githubConfig: testGithubConfig,
+    sandboxService,
+    sessionManager: makeStubSessionManager(),
+  });
   const token = generateSessionToken();
   createSession(db, token, { githubId: GITHUB_ID, githubLogin: LOGIN });
   return { app, db, cookie: `${SESSION_COOKIE_NAME}=${token}`, sandboxService };

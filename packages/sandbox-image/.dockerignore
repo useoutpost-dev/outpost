@@ -1,0 +1,5 @@
+# Keep the build context lean and reproducible: node_modules is compiled fresh
+# in the daemon-build stage; tests and lockfiles are not needed in the image.
+terminal-daemon/node_modules
+terminal-daemon/test
+**/*.log

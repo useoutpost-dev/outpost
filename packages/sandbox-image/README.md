@@ -26,6 +26,78 @@ tools inside the sandbox can run their own containers — this is Docker-in-Dock
    New sandbox machines pick up the new image on next create; existing machines
    keep their pinned image until recreated.
 
+## Terminal daemon (port 8022)
+
+The image ships a small in-sandbox WebSocket terminal daemon
+(`terminal-daemon/`, node-pty + ws). The Outpost server dials it over Fly
+private networking; browsers never reach it directly. It is **not** published on
+any public edge — `EXPOSE` is intentionally unset for 8022.
+
+- **Listen:** `0.0.0.0:8022` (WS). Reachable only over Fly 6PN.
+- **Auth:** every WS upgrade must carry `Authorization: Bearer <token>` matching
+  the `OUTPOST_TERMINAL_TOKEN` env (a per-sandbox 256-bit token the server
+  injects at machine create). Compared in constant time
+  (`crypto.timingSafeEqual` over equal-length SHA-256 digests). A missing/wrong
+  token is rejected with `401` and the socket is closed. If
+  `OUTPOST_TERMINAL_TOKEN` is unset/empty the daemon **refuses to start**
+  (fail-loud); the entrypoint then boots the sandbox without a terminal
+  (acceptable for pre-Phase-3 sandboxes).
+- **Process identity:** the daemon and the PTY shell both run as the non-root
+  `outpost` user (never root). The entrypoint launches it with `gosu outpost`.
+- **One PTY per sandbox:** a single login shell (`bash -l`, `TERM=xterm-256color`,
+  cwd `/workspace`). Its lifetime is independent of any WS connection — it
+  survives socket drops and is respawned on the next connect if it exited.
+- **One upstream connection at a time:** a new authenticated connection replaces
+  the previous one (the old socket is closed). Fan-out to multiple browser tabs
+  is the server's job, not the daemon's.
+- **Replay buffer:** a bounded (~2 MB, drop-oldest) ring buffer of PTY output.
+  On every (re)connection the daemon replays the buffer as binary frames, then
+  sends a `{"type":"replay-end"}` text frame.
+
+### Wire protocol
+
+| Frame | Direction | Meaning |
+|---|---|---|
+| binary | client → daemon | bytes written to the PTY |
+| binary | daemon → client | raw PTY output |
+| text `{"type":"resize","cols":N,"rows":N}` | client → daemon | resize the PTY |
+| text `{"type":"ping"}` | client → daemon | daemon replies `{"type":"pong"}` |
+| text `{"type":"replay-end"}` | daemon → client | end of scrollback replay |
+| text `{"type":"ping"}` | daemon → client | keepalive every 25 s |
+| text `{"type":"pong"}` | client → daemon | answers the daemon's keepalive |
+
+The daemon drops the socket after 2 unanswered keepalive pings. Malformed
+control frames are ignored (never fatal). The token and terminal data are
+**never** logged.
+
+### Dependencies (only two, compiled/bundled in the image)
+
+- **`node-pty`** — allocates the PTY and the login shell. No pure-JS substitute
+  exists; native compile is required.
+- **`ws`** — the WebSocket server. Fastify's WS transport is server-side only;
+  the daemon is a standalone Node process, so it uses `ws` directly (matching
+  the server's `ws@^8.18`).
+
+The daemon is **plain CommonJS JavaScript** (no TypeScript build step): it keeps
+the image build free of a TS toolchain, and the logic units (ring buffer,
+control-frame parser, token compare) are covered by `node --test`.
+
+### Bumping / rebuilding the daemon
+
+1. Edit sources under `terminal-daemon/` (bump dep versions in
+   `terminal-daemon/package.json` if needed).
+2. Run the unit tests: `cd terminal-daemon && node --test`.
+3. Rebuild the image (see **Build and push** below). The `daemon-build` stage
+   recompiles `node-pty` against node 22; the runtime stage copies the result.
+4. Smoke-test locally:
+   ```sh
+   docker build -t outpost-sandbox:local .
+   docker run --rm --privileged \
+     -e OUTPOST_TERMINAL_TOKEN=testtoken -p 8022:8022 outpost-sandbox:local
+   # in another shell, from terminal-daemon/ (after `npm install`):
+   OUTPOST_TERMINAL_TOKEN=testtoken node test/smoke-client.js
+   ```
+
 ## Docker-in-Docker and privileged mode
 
 The image installs the Docker Engine and starts `dockerd` from the entrypoint.
