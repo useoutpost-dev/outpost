@@ -1,0 +1,1 @@
+ALTER TABLE `sandboxes` ADD `terminal_token` text;

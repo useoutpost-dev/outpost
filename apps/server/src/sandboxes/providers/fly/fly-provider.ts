@@ -6,6 +6,7 @@ import {
   type SandboxProvider,
   type SandboxSpec,
   type SandboxStatus,
+  type TerminalEndpoint,
 } from '@outpost/shared-api';
 import {
   createFlyClient,
@@ -281,6 +282,9 @@ export function createFlyProvider(config: FlyProviderConfig, fetcher?: Fetcher):
     get,
     list,
     async exec(): Promise<ExecResult> {
+      return notImplemented();
+    },
+    async terminalEndpoint(): Promise<TerminalEndpoint> {
       return notImplemented();
     },
     async mount(): Promise<void> {

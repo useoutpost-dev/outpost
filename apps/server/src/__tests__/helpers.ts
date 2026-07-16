@@ -49,7 +49,9 @@ export function stubFetcher(user: { id: number; login: string }): Fetcher {
 }
 
 /** In-memory SandboxProvider for tests — never touches Fly. */
-export function makeFakeProvider(): SandboxProvider & { machines: Map<string, Sandbox> } {
+export function makeFakeProvider(
+  opts: { terminalUrl?: (id: string) => string } = {},
+): SandboxProvider & { machines: Map<string, Sandbox> } {
   const machines = new Map<string, Sandbox>();
   let counter = 0;
 
@@ -89,6 +91,10 @@ export function makeFakeProvider(): SandboxProvider & { machines: Map<string, Sa
 
     async exec() {
       return { exitCode: 0, stdout: '', stderr: '' };
+    },
+
+    async terminalEndpoint(id: string) {
+      return { url: opts.terminalUrl?.(id) ?? `ws://terminal.test/${id}` };
     },
 
     async mount() {},
