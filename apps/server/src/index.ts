@@ -160,7 +160,10 @@ if (isDirectRun) {
       onTeardown: (id) => sessionManager.destroy(id),
     });
     const app = buildApp({ db, githubConfig: config.githubConfig, sandboxService, sessionManager });
-    const port = Number(process.env.PORT ?? 3001);
+    // Guard against an empty or non-numeric PORT (e.g. a blank `PORT=` line in
+    // .env): Number('') is 0, which makes Node bind a random ephemeral port.
+    const parsedPort = Number(process.env.PORT);
+    const port = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : 3001;
     await app.listen({ port, host: '0.0.0.0' });
   } catch (err) {
     console.error('server failed to start:', err instanceof Error ? err.message : err);
