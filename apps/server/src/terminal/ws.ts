@@ -21,6 +21,8 @@ export interface TerminalRouteDeps {
   sessionManager: SessionManager;
   /** Resolve the sandbox's current status + terminal token from the DB. */
   lookupSandbox(id: string): { status: string; terminalToken: string | null } | undefined;
+  /** Base URL of the app; a browser Origin header must match its origin. */
+  allowedOrigin: string;
 }
 
 /** Application close codes (4000-4999 are reserved for app use per RFC 6455). */
@@ -29,7 +31,18 @@ const CLOSE_CONFLICT = 4409;
 const CLOSE_INTERNAL = 4500;
 
 export function registerTerminalRoute(app: FastifyInstance, deps: TerminalRouteDeps): void {
-  const { sessionManager, lookupSandbox } = deps;
+  const { sessionManager, lookupSandbox, allowedOrigin } = deps;
+  const expectedOrigin = new URL(allowedOrigin).origin;
+
+  // Browsers always send Origin on a WS upgrade; a mismatch means a cross-site
+  // page is trying to ride the session cookie, so reject pre-upgrade with 403.
+  // A missing Origin (non-browser client) passes — it still needs cookie auth.
+  app.addHook('onRequest', async (req) => {
+    const origin = req.headers.origin;
+    if (origin !== undefined && origin !== expectedOrigin) {
+      throw new OutpostError('FORBIDDEN', 403, 'cross-origin request rejected');
+    }
+  });
 
   app.get('/api/sandboxes/:id/terminal', { websocket: true }, async (socket: WebSocket, req) => {
     const { id } = req.params as { id: string };

@@ -179,6 +179,33 @@ describe('terminal WS — auth gate on upgrade', () => {
       await rig.close();
     }
   });
+
+  it('cross-origin upgrade → 403 even with a valid session', async () => {
+    const rig = await makeRig(daemon.url);
+    try {
+      const ws = new WebSocket(`${rig.baseUrl}/api/sandboxes/${rig.sandboxId}/terminal`, {
+        headers: { cookie: rig.cookie, origin: 'https://evil.example' },
+      });
+      const [, res] = (await once(ws, 'unexpected-response')) as [unknown, { statusCode: number }];
+      expect(res.statusCode).toBe(403);
+      expect(daemon.connectionCount()).toBe(0);
+    } finally {
+      await rig.close();
+    }
+  });
+
+  it('same-origin upgrade with Origin header set is accepted', async () => {
+    const rig = await makeRig(daemon.url);
+    try {
+      const ws = new WebSocket(`${rig.baseUrl}/api/sandboxes/${rig.sandboxId}/terminal`, {
+        headers: { cookie: rig.cookie, origin: testGithubConfig.baseUrl },
+      });
+      await once(ws, 'open');
+      ws.close();
+    } finally {
+      await rig.close();
+    }
+  });
 });
 
 describe('terminal WS — attach + replay', () => {

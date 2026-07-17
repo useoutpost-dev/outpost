@@ -60,7 +60,9 @@ export function buildApp(opts: BuildAppOptions) {
   app.register(cookie);
   // First-party Fastify WS transport for the terminal route. The global
   // onRequest auth gate still runs on the upgrade request before the handler.
-  app.register(websocket);
+  // maxPayload caps a single frame (1MB covers any paste) so one oversized
+  // frame can't balloon memory before the ring buffer ever sees it.
+  app.register(websocket, { options: { maxPayload: 1024 * 1024 } });
 
   app.get('/health', () => ({ ok: true }));
 
@@ -73,6 +75,7 @@ export function buildApp(opts: BuildAppOptions) {
   app.register(async (scope) => {
     registerTerminalRoute(scope, {
       sessionManager,
+      allowedOrigin: githubConfig.baseUrl,
       lookupSandbox: (id) => {
         const row = findSandboxById(db, id);
         if (!row) return undefined;

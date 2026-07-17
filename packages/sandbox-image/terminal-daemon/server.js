@@ -137,7 +137,8 @@ server.on('clientError', (_err, socket) => {
 });
 
 // noServer: we gate the upgrade ourselves before handing off to ws.
-const wss = new WebSocketServer({ noServer: true });
+// maxPayload caps a single frame so one oversized frame can't balloon memory.
+const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
 
 server.on('upgrade', (req, socket, head) => {
   const authorized = (() => {
