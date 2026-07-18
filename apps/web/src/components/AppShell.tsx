@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Terminal } from '../screens/Terminal';
+import { SandboxCreate } from '../screens/SandboxCreate';
 
 interface AppShellProps {
   login?: string;
@@ -13,6 +14,7 @@ interface SandboxItem {
 
 type View =
   | { kind: 'list' }
+  | { kind: 'create' }
   | { kind: 'terminal'; sandboxId: string; name: string };
 
 export function AppShell({ login }: AppShellProps) {
@@ -50,6 +52,15 @@ export function AppShell({ login }: AppShellProps) {
     );
   }
 
+  if (view.kind === 'create') {
+    return (
+      <SandboxCreate
+        onCreated={() => setView({ kind: 'list' })}
+        onBack={() => setView({ kind: 'list' })}
+      />
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-basalt">
       {/* Top bar */}
@@ -64,9 +75,18 @@ export function AppShell({ login }: AppShellProps) {
 
       {/* Sandbox list */}
       <main className="flex flex-1 flex-col p-6">
-        <h1 className="mb-4 font-display text-sm font-semibold uppercase tracking-[0.2em] text-bonewhite">
-          Sandboxes
-        </h1>
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="font-display text-sm font-semibold uppercase tracking-[0.2em] text-bonewhite">
+            Sandboxes
+          </h1>
+          <button
+            type="button"
+            onClick={() => setView({ kind: 'create' })}
+            className="rounded bg-beacon px-3 py-1.5 font-mono text-xs font-medium text-basalt transition-opacity hover:opacity-90"
+          >
+            New sandbox
+          </button>
+        </div>
 
         {loading && (
           <p className="font-mono text-xs text-ash">loading…</p>
