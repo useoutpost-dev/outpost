@@ -9,6 +9,7 @@ import {
   makeFakeSandboxService,
   makeStubSessionManager,
   makeFakeCredentialsService,
+  testCollectorToken,
 } from './helpers.js';
 
 const LOGIN = 'octocat';
@@ -30,6 +31,7 @@ function authedApp() {
     sandboxService: makeFakeSandboxService(db),
     sessionManager: makeStubSessionManager(),
     credentialsService: makeFakeCredentialsService(db),
+    collectorToken: testCollectorToken,
   });
   const token = generateSessionToken();
   createSession(db, token, { githubId: GITHUB_ID, githubLogin: LOGIN });

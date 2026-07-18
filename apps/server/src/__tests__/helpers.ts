@@ -110,9 +110,13 @@ export function makeFakeProvider(
   };
 }
 
+/** ≥32-char dummy collector token for tests that build the app/service. */
+export const testCollectorToken = 'test-collector-token-0123456789abcdef';
+
 export const testSandboxConfig = {
   image: 'outpost/sandbox:test',
   collectorEndpoint: 'http://collector.test:4318',
+  collectorToken: testCollectorToken,
 };
 
 /** Build a sandbox service backed by a fake in-memory provider. */

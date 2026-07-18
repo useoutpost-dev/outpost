@@ -11,6 +11,7 @@ import {
   makeStubSessionManager,
   makeFakeCredentialsService,
   testSandboxConfig,
+  testCollectorToken,
 } from './helpers.js';
 import { createSandboxService } from '../sandboxes/service.js';
 import { reconcileOrphans } from '../sandboxes/reconcile.js';
@@ -189,6 +190,7 @@ function authedApp() {
     sandboxService,
     sessionManager: makeStubSessionManager(),
     credentialsService: makeFakeCredentialsService(db),
+    collectorToken: testCollectorToken,
   });
   const token = generateSessionToken();
   createSession(db, token, { githubId: GITHUB_ID, githubLogin: LOGIN });

@@ -197,6 +197,7 @@ describe('boot config', () => {
     FLY_REGION: 'iad',
     OUTPOST_SANDBOX_IMAGE: 'ghcr.io/outpost/sandbox:latest',
     OUTPOST_COLLECTOR_ENDPOINT: 'http://collector:4318',
+    OUTPOST_COLLECTOR_TOKEN: 'x'.repeat(32),
     OUTPOST_MASTER_KEY: Buffer.alloc(32, 7).toString('base64'),
   };
 
@@ -212,10 +213,31 @@ describe('boot config', () => {
     );
   });
 
+  it('fails loud when OUTPOST_COLLECTOR_TOKEN is missing', () => {
+    expect(() => loadBootConfig({ ...fullEnv, OUTPOST_COLLECTOR_TOKEN: undefined })).toThrow(
+      /OUTPOST_COLLECTOR_TOKEN is required/,
+    );
+  });
+
+  it('fails loud when OUTPOST_COLLECTOR_TOKEN is shorter than 32 chars', () => {
+    const err = (() => {
+      try {
+        loadBootConfig({ ...fullEnv, OUTPOST_COLLECTOR_TOKEN: 'short' });
+        return null;
+      } catch (e) {
+        return e as Error;
+      }
+    })();
+    expect(err?.message).toMatch(/at least 32 characters/);
+    // The error must never echo the token value.
+    expect(err?.message).not.toContain('short');
+  });
+
   it('returns config when everything is set', () => {
     const config = loadBootConfig(fullEnv);
     expect(config.githubConfig.clientId).toBe('id');
     expect(config.fly.apiToken).toBe('fly-token');
     expect(config.sandbox.image).toBe('ghcr.io/outpost/sandbox:latest');
+    expect(config.sandbox.collectorToken).toBe('x'.repeat(32));
   });
 });

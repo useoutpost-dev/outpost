@@ -5,7 +5,13 @@ import { lookupSession } from './auth.repo.js';
 import { SESSION_COOKIE_NAME } from './session.js';
 
 /** Routes reachable without a valid session. Everything else is gated. */
-export const PUBLIC_PATHS = new Set(['/health', '/auth/login', '/auth/callback']);
+export const PUBLIC_PATHS = new Set([
+  '/health',
+  '/auth/login',
+  '/auth/callback',
+  // Collector is token-gated (collector bearer token), not session-gated.
+  '/v1/metrics',
+]);
 
 /** Authorized identity resolved from a session and re-checked against the allowlist. */
 export interface AuthorizedUser {

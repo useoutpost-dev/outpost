@@ -15,6 +15,7 @@ import {
   makeSessionManager,
   makeFakeCredentialsService,
   startFakeDaemon,
+  testCollectorToken,
   type FakeDaemon,
 } from './helpers.js';
 import type { Db } from '../db/client.js';
@@ -62,6 +63,7 @@ async function makeRig(
     sandboxService,
     sessionManager,
     credentialsService: makeFakeCredentialsService(db),
+    collectorToken: testCollectorToken,
   });
 
   const sandboxId = 'sbx-1';
