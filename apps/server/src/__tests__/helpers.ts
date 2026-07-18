@@ -11,6 +11,7 @@ import type { Db } from '../db/client.js';
 import type { GithubConfig } from '../auth/github.js';
 import type { SandboxProvider, Sandbox, SandboxSpec } from '@outpost/shared-api';
 import { createSandboxService } from '../sandboxes/service.js';
+import { createCredentialsService } from '../credentials/service.js';
 import { createSessionManager, type SessionManager } from '../terminal/session-manager.js';
 
 const migrationsFolder = path.join(
@@ -122,6 +123,14 @@ export function makeFakeSandboxService(
 ) {
   const p = provider ?? makeFakeProvider();
   return createSandboxService({ db, provider: p, config: testSandboxConfig, onTeardown });
+}
+
+/** Build a credentials service backed by a fake in-memory provider. Tests that
+ *  need one for buildApp can use this; it requires OUTPOST_MASTER_KEY to be set
+ *  before any encrypt/decrypt call. */
+export function makeFakeCredentialsService(db: Db, provider?: SandboxProvider) {
+  const p = provider ?? makeFakeProvider();
+  return createCredentialsService({ db, provider: p });
 }
 
 /** A session manager that never dials a real daemon — used by non-terminal

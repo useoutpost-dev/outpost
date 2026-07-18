@@ -3,7 +3,13 @@ import { OutpostError } from '@outpost/shared-api';
 import { buildApp } from '../index.js';
 import { createSession } from '../auth/auth.repo.js';
 import { generateSessionToken, SESSION_COOKIE_NAME } from '../auth/session.js';
-import { makeTestDb, testGithubConfig, makeFakeSandboxService, makeStubSessionManager } from './helpers.js';
+import {
+  makeTestDb,
+  testGithubConfig,
+  makeFakeSandboxService,
+  makeStubSessionManager,
+  makeFakeCredentialsService,
+} from './helpers.js';
 
 const LOGIN = 'octocat';
 const GITHUB_ID = 583231;
@@ -23,6 +29,7 @@ function authedApp() {
     githubConfig: testGithubConfig,
     sandboxService: makeFakeSandboxService(db),
     sessionManager: makeStubSessionManager(),
+    credentialsService: makeFakeCredentialsService(db),
   });
   const token = generateSessionToken();
   createSession(db, token, { githubId: GITHUB_ID, githubLogin: LOGIN });

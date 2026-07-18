@@ -43,6 +43,20 @@ function appendSandboxEvent(
   db.insert(events).values({ kind, sandboxId, payload }).run();
 }
 
+/**
+ * Subset of the credentials service the sandbox service consumes. Kept as a
+ * structural type so tests can inject a partial fake and so the sandbox module
+ * never imports credential internals directly.
+ */
+export interface CredentialsPort {
+  envForAccount(accountId: string): Promise<Record<string, string>>;
+  captureFromSandbox(sandboxRow: {
+    accountId: string | null;
+    providerRef: string | null;
+    status: string;
+  }): Promise<boolean>;
+}
+
 export interface SandboxServiceDeps {
   db: Db;
   provider: SandboxProvider;
@@ -53,6 +67,11 @@ export interface SandboxServiceDeps {
    * tests without a session manager still work.
    */
   onTeardown?: (sandboxId: string) => void;
+  /**
+   * Credential env assembly + subscription capture. Optional so tests that
+   * don't exercise accounts can omit it.
+   */
+  credentialsService?: CredentialsPort;
 }
 
 const DEFAULT_RESOURCES: SandboxResources = { cpus: 2, memoryMb: 2048, diskGb: 10 };
@@ -80,13 +99,29 @@ function toPublic(row: SandboxRow): SandboxPublic {
 export interface CreateSandboxInput {
   name: string;
   resources?: Partial<SandboxResources>;
+  /** Optional Claude account to attach; env is resolved via credentialsService. */
+  accountId?: string;
 }
 
 export function createSandboxService(deps: SandboxServiceDeps) {
-  const { db, provider, config, onTeardown } = deps;
+  const { db, provider, config, onTeardown, credentialsService } = deps;
+
+  /** Best-effort subscription capture; swallows everything (never blocks teardown). */
+  async function captureCredentials(row: SandboxRow): Promise<void> {
+    if (!credentialsService || !row.accountId) return;
+    try {
+      await credentialsService.captureFromSandbox({
+        accountId: row.accountId,
+        providerRef: row.providerRef,
+        status: row.status,
+      });
+    } catch {
+      // capture is best-effort; failures must not affect stop/destroy.
+    }
+  }
 
   async function create(input: CreateSandboxInput): Promise<SandboxPublic> {
-    const { name, resources: partialResources } = input;
+    const { name, resources: partialResources, accountId } = input;
     const resources: SandboxResources = { ...DEFAULT_RESOURCES, ...partialResources };
 
     // Duplicate name check
@@ -97,24 +132,48 @@ export function createSandboxService(deps: SandboxServiceDeps) {
 
     const id = crypto.randomUUID();
 
+    // Resolve credential env BEFORE inserting the row so an unknown accountId
+    // fails fast (404) without leaving a dangling 'creating' sandbox. The
+    // resolved values are secret material — they go into the machine env only,
+    // never into event payloads or logs.
+    let credentialEnv: Record<string, string> = {};
+    if (accountId) {
+      if (!credentialsService) {
+        throw new OutpostError('INTERNAL', 500, 'accountId given but credentials service unavailable');
+      }
+      credentialEnv = await credentialsService.envForAccount(accountId);
+    }
+
     // Per-sandbox 256-bit bearer token for the in-sandbox terminal daemon.
     // Stored in the DB and injected into the machine env only; it must NEVER
     // appear in event payloads or logs.
     const terminalToken = crypto.randomBytes(32).toString('hex');
 
     // Insert row + event as 'creating'
-    insertSandbox(db, { id, name, provider: 'fly', status: 'creating', terminalToken });
+    insertSandbox(db, {
+      id,
+      name,
+      provider: 'fly',
+      status: 'creating',
+      terminalToken,
+      accountId: accountId ?? null,
+    });
     appendSandboxEvent(db, 'sandbox.creating', id, { provider: 'fly', providerRef: null });
 
     // Compose OTEL env — provider-agnostic
-    // Phase 4: when accounts land, add account.id to OTEL_RESOURCE_ATTRIBUTES: `sandbox.id=${id},account.id=${accountId}`
+    const resourceAttrs = accountId
+      ? `sandbox.id=${id},account.id=${accountId}`
+      : `sandbox.id=${id}`;
     const env: Record<string, string> = {
       CLAUDE_CODE_ENABLE_TELEMETRY: '1',
       OTEL_EXPORTER_OTLP_ENDPOINT: config.collectorEndpoint,
-      OTEL_RESOURCE_ATTRIBUTES: `sandbox.id=${id}`,
+      OTEL_RESOURCE_ATTRIBUTES: resourceAttrs,
       // OTEL_LOG_USER_PROMPTS is intentionally never set
       // Terminal daemon bearer token — consumed by the in-sandbox daemon only.
       OUTPOST_TERMINAL_TOKEN: terminalToken,
+      // Credential env (ANTHROPIC_API_KEY or the encoded credential blob). Never
+      // logged and never placed in event payloads.
+      ...credentialEnv,
     };
 
     try {
@@ -157,6 +216,10 @@ export function createSandboxService(deps: SandboxServiceDeps) {
       throw new OutpostError('INTERNAL', 500, 'sandbox has no provider reference');
     }
 
+    // Best-effort: persist any fresh subscription login before the machine goes
+    // away. Never blocks or fails the stop.
+    await captureCredentials(row);
+
     try {
       await provider.stop(row.providerRef);
     } catch (err) {
@@ -185,6 +248,10 @@ export function createSandboxService(deps: SandboxServiceDeps) {
     if (!row) throw new OutpostError('NOT_FOUND', 404, 'sandbox not found');
 
     assertTransition(row.status as SandboxStatus, 'destroyed');
+
+    // Best-effort capture before the machine is destroyed (only meaningful when
+    // still running with a subscription account).
+    await captureCredentials(row);
 
     if (row.providerRef) {
       try {

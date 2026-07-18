@@ -9,7 +9,14 @@ import {
   SESSION_COOKIE_NAME,
 } from '../auth/session.js';
 import { STATE_COOKIE_NAME } from '../auth/github.js';
-import { makeTestDb, testGithubConfig, stubFetcher, makeFakeSandboxService, makeStubSessionManager } from './helpers.js';
+import {
+  makeTestDb,
+  testGithubConfig,
+  stubFetcher,
+  makeFakeSandboxService,
+  makeStubSessionManager,
+  makeFakeCredentialsService,
+} from './helpers.js';
 
 const LOGIN = 'octocat';
 const GITHUB_ID = 583231;
@@ -30,6 +37,7 @@ function build(user: { id: number; login: string } = { id: GITHUB_ID, login: LOG
     fetcher: stubFetcher(user),
     sandboxService: makeFakeSandboxService(db),
     sessionManager: makeStubSessionManager(),
+    credentialsService: makeFakeCredentialsService(db),
   });
   return { db, app };
 }

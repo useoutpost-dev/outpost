@@ -29,6 +29,27 @@ export const sessions = sqliteTable('sessions', {
 export type SessionRow = typeof sessions.$inferSelect;
 export type NewSessionRow = typeof sessions.$inferInsert;
 
+export const accounts = sqliteTable('accounts', {
+  id: text('id').primaryKey(),
+  // display label only — the ONLY account field that may appear in logs/events
+  label: text('label').notNull().unique(),
+  kind: text('kind', { enum: ['subscription', 'api_key'] }).notNull(),
+  // provider volume for the identity layer on multi-attach-capable providers;
+  // unused by the Fly path (Fly volumes are single-attach)
+  credentialVolumeRef: text('credential_volume_ref'),
+  // api_key kind: sealed-box ciphertext of the API key, base64
+  encryptedKey: text('encrypted_key'),
+  // subscription kind: sealed-box ciphertext of the Claude credential file blob,
+  // base64; null until first login has been captured from a sandbox
+  encryptedCredentials: text('encrypted_credentials'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type AccountRow = typeof accounts.$inferSelect;
+export type NewAccountRow = typeof accounts.$inferInsert;
+
 export const sandboxes = sqliteTable('sandboxes', {
   id: text('id').primaryKey(),
   name: text('name').notNull().unique(),

@@ -19,6 +19,7 @@ const resourcesSchema = z
 const createBodySchema = z.object({
   name: nameSchema,
   resources: resourcesSchema,
+  accountId: z.string().min(1).optional(),
 });
 
 function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {

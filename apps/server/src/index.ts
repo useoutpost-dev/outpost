@@ -9,6 +9,8 @@ import { registerAuthGate, parseAllowedIds } from './auth/middleware.js';
 import { registerAuthRoutes } from './auth/routes.js';
 import { registerSandboxRoutes } from './sandboxes/routes.js';
 import type { SandboxService } from './sandboxes/service.js';
+import { registerCredentialRoutes } from './credentials/routes.js';
+import type { CredentialsService } from './credentials/service.js';
 import { registerTerminalRoute } from './terminal/ws.js';
 import type { SessionManager } from './terminal/session-manager.js';
 import { findSandboxById } from './sandboxes/sandboxes.repo.js';
@@ -22,6 +24,8 @@ export interface BuildAppOptions {
   sandboxService: SandboxService;
   /** Terminal session manager — gates and serves the terminal WS route. */
   sessionManager: SessionManager;
+  /** Credential/account service — backs the /api/accounts routes. */
+  credentialsService: CredentialsService;
 }
 
 /**
@@ -35,7 +39,7 @@ export function stripUrlQuery(url: string): string {
 }
 
 export function buildApp(opts: BuildAppOptions) {
-  const { db, githubConfig, fetcher, sandboxService, sessionManager } = opts;
+  const { db, githubConfig, fetcher, sandboxService, sessionManager, credentialsService } = opts;
   const app = Fastify({
     logger: {
       serializers: {
@@ -69,6 +73,7 @@ export function buildApp(opts: BuildAppOptions) {
   registerAuthGate(app, db);
   registerAuthRoutes(app, { db, githubConfig, fetcher });
   registerSandboxRoutes(app, { service: sandboxService });
+  registerCredentialRoutes(app, { service: credentialsService });
 
   // WS route registration must be inside a plugin scope that has @fastify/websocket
   // loaded; register after the plugin above so `{ websocket: true }` is recognized.
@@ -141,6 +146,7 @@ if (isDirectRun) {
     const { reconcileOrphans } = await import('./sandboxes/reconcile.js');
     const { createSandboxService } = await import('./sandboxes/service.js');
     const { createSessionManager } = await import('./terminal/session-manager.js');
+    const { createCredentialsService } = await import('./credentials/service.js');
 
     const provider = createFlyProvider(config.fly);
 
@@ -153,13 +159,22 @@ if (isDirectRun) {
       log: { warn: (m) => console.warn(m), error: (m) => console.error(m) },
     });
 
+    const credentialsService = createCredentialsService({ db, provider });
+
     const sandboxService = createSandboxService({
       db,
       provider,
       config: config.sandbox,
       onTeardown: (id) => sessionManager.destroy(id),
+      credentialsService,
     });
-    const app = buildApp({ db, githubConfig: config.githubConfig, sandboxService, sessionManager });
+    const app = buildApp({
+      db,
+      githubConfig: config.githubConfig,
+      sandboxService,
+      sessionManager,
+      credentialsService,
+    });
     // Guard against an empty or non-numeric PORT (e.g. a blank `PORT=` line in
     // .env): Number('') is 0, which makes Node bind a random ephemeral port.
     const parsedPort = Number(process.env.PORT);
