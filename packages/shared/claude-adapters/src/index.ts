@@ -1,2 +1,2 @@
 // Barrel export — adapters for Claude Code internals go here
-export {};
+export * from './credentials.js';

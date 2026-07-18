@@ -9,6 +9,7 @@ import {
   makeFakeProvider,
   makeFakeSandboxService,
   makeStubSessionManager,
+  makeFakeCredentialsService,
   testSandboxConfig,
 } from './helpers.js';
 import { createSandboxService } from '../sandboxes/service.js';
@@ -187,6 +188,7 @@ function authedApp() {
     githubConfig: testGithubConfig,
     sandboxService,
     sessionManager: makeStubSessionManager(),
+    credentialsService: makeFakeCredentialsService(db),
   });
   const token = generateSessionToken();
   createSession(db, token, { githubId: GITHUB_ID, githubLogin: LOGIN });

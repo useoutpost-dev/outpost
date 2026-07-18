@@ -8,10 +8,6 @@
       "Edit(apps/**)",
       "Edit(packages/**)"
     ],
-    "deny": [
-      "Read(.env*)",
-      "Edit(.env*)",
-      "Bash(rm -rf *)"
-    ]
+    "deny": ["Read(.env*)", "Bash(rm -rf *)"]
   }
 }

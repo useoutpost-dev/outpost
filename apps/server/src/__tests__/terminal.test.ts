@@ -13,6 +13,7 @@ import {
   makeFakeProvider,
   makeFakeSandboxService,
   makeSessionManager,
+  makeFakeCredentialsService,
   startFakeDaemon,
   type FakeDaemon,
 } from './helpers.js';
@@ -55,7 +56,13 @@ async function makeRig(
     (id) => findSandboxById(db, id)?.terminalToken ?? null,
   );
   const sandboxService = makeFakeSandboxService(db, provider, (id) => sessionManager.destroy(id));
-  const app = buildApp({ db, githubConfig: testGithubConfig, sandboxService, sessionManager });
+  const app = buildApp({
+    db,
+    githubConfig: testGithubConfig,
+    sandboxService,
+    sessionManager,
+    credentialsService: makeFakeCredentialsService(db),
+  });
 
   const sandboxId = 'sbx-1';
   db.insert(sandboxes)

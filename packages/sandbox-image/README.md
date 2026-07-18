@@ -26,6 +26,30 @@ tools inside the sandbox can run their own containers — this is Docker-in-Dock
    New sandbox machines pick up the new image on next create; existing machines
    keep their pinned image until recreated.
 
+## Identity layer: Claude credential seeding
+
+The server may seed a single Claude Code OAuth credential file into the sandbox
+at boot. This is the **identity layer** — only the credential file crosses the
+boundary; session data, transcripts, and settings stay per-sandbox (the whole
+`~/.claude` directory is **never** shared, or usage attribution and transcripts
+would bleed between sandboxes).
+
+- **Env var:** `OUTPOST_CLAUDE_CREDENTIALS_B64` — base64-encoded content of the
+  credential file. If unset/empty, nothing is seeded and Claude Code prompts for
+  login on first use.
+- **Target path:** `/home/outpost/.claude/.credentials.json` (Claude Code runs as
+  the non-root `outpost` user with `HOME=/home/outpost`; on macOS *hosts* Claude
+  Code uses the Keychain instead, but sandboxes are Linux so this file is
+  authoritative).
+- **Permissions:** the file is `chown outpost:outpost`, `chmod 600`; its parent
+  `~/.claude` dir is `chmod 700`.
+- **Fail-open:** a decode failure logs a warning and boot continues (the sandbox
+  is never bricked by bad credentials). The env value is never echoed or logged.
+
+The path and file format are owned exclusively by
+`packages/shared/claude-adapters/src/credentials.ts`; the entrypoint only decodes
+and places the bytes.
+
 ## Terminal daemon (port 8022)
 
 The image ships a small in-sandbox WebSocket terminal daemon
@@ -170,3 +194,17 @@ Outpost runs **two** Fly apps:
 
 This is a build artifact, not a deployable Fly service: `docker build` + push to
 GHCR, then point the server at the tag.
+
+## Known limitations
+
+- **Secrets rest in Fly machine config.** `OUTPOST_TERMINAL_TOKEN`,
+  `ANTHROPIC_API_KEY`, and `OUTPOST_CLAUDE_CREDENTIALS_B64` are delivered as
+  machine env vars at create time, and Fly stores machine env in its config
+  layer — readable by anyone with Fly API read access to the sandbox app.
+  Credentials are encrypted at rest in Outpost's own DB, but not in Fly's
+  control plane. Acceptable for single-user self-host (the Fly org owner is
+  the credential owner); a secrets-mount delivery path is future hardening
+  scope.
+- **`OUTPOST_MASTER_KEY` loss is unrecoverable.** Every stored API key and
+  captured credential blob is sealed to it; there is no recovery path and key
+  rotation is intentionally unsupported for now. Back it up out-of-band.

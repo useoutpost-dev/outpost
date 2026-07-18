@@ -9,6 +9,8 @@ import { registerAuthGate, parseAllowedIds } from './auth/middleware.js';
 import { registerAuthRoutes } from './auth/routes.js';
 import { registerSandboxRoutes } from './sandboxes/routes.js';
 import type { SandboxService } from './sandboxes/service.js';
+import { registerCredentialRoutes } from './credentials/routes.js';
+import type { CredentialsService } from './credentials/service.js';
 import { registerTerminalRoute } from './terminal/ws.js';
 import type { SessionManager } from './terminal/session-manager.js';
 import { findSandboxById } from './sandboxes/sandboxes.repo.js';
@@ -22,6 +24,8 @@ export interface BuildAppOptions {
   sandboxService: SandboxService;
   /** Terminal session manager — gates and serves the terminal WS route. */
   sessionManager: SessionManager;
+  /** Credential/account service — backs the /api/accounts routes. */
+  credentialsService: CredentialsService;
 }
 
 /**
@@ -35,11 +39,13 @@ export function stripUrlQuery(url: string): string {
 }
 
 export function buildApp(opts: BuildAppOptions) {
-  const { db, githubConfig, fetcher, sandboxService, sessionManager } = opts;
+  const { db, githubConfig, fetcher, sandboxService, sessionManager, credentialsService } = opts;
   const app = Fastify({
     logger: {
       serializers: {
         // Never log the query string; it may carry the OAuth code on /auth/callback.
+        // Whitelist serializer: method + url only — request bodies (which carry
+        // API keys on POST /api/accounts) must never reach the logger.
         req(req: { method: string; url: string }) {
           return { method: req.method, url: stripUrlQuery(req.url) };
         },
@@ -69,6 +75,7 @@ export function buildApp(opts: BuildAppOptions) {
   registerAuthGate(app, db);
   registerAuthRoutes(app, { db, githubConfig, fetcher });
   registerSandboxRoutes(app, { service: sandboxService });
+  registerCredentialRoutes(app, { service: credentialsService });
 
   // WS route registration must be inside a plugin scope that has @fastify/websocket
   // loaded; register after the plugin above so `{ websocket: true }` is recognized.
@@ -122,6 +129,15 @@ export function loadBootConfig(env: NodeJS.ProcessEnv = process.env): BootConfig
   const collectorEndpoint = env.OUTPOST_COLLECTOR_ENDPOINT?.trim();
   if (!collectorEndpoint) throw new Error('OUTPOST_COLLECTOR_ENDPOINT is required but unset or empty');
 
+  // Fail at boot, not on the first account operation. Only the shape is checked
+  // here (32 bytes base64); crypto.ts owns the actual key derivation. The error
+  // must never echo the key value.
+  const masterKey = env.OUTPOST_MASTER_KEY?.trim();
+  if (!masterKey) throw new Error('OUTPOST_MASTER_KEY is required but unset or empty');
+  if (Buffer.from(masterKey, 'base64').length !== 32) {
+    throw new Error('OUTPOST_MASTER_KEY must be 32 bytes base64 (e.g. `openssl rand -base64 32`)');
+  }
+
   return {
     githubConfig,
     fly: { apiToken: flyApiToken, app: flyApp, region: flyRegion },
@@ -141,6 +157,7 @@ if (isDirectRun) {
     const { reconcileOrphans } = await import('./sandboxes/reconcile.js');
     const { createSandboxService } = await import('./sandboxes/service.js');
     const { createSessionManager } = await import('./terminal/session-manager.js');
+    const { createCredentialsService } = await import('./credentials/service.js');
 
     const provider = createFlyProvider(config.fly);
 
@@ -153,13 +170,22 @@ if (isDirectRun) {
       log: { warn: (m) => console.warn(m), error: (m) => console.error(m) },
     });
 
+    const credentialsService = createCredentialsService({ db, provider });
+
     const sandboxService = createSandboxService({
       db,
       provider,
       config: config.sandbox,
       onTeardown: (id) => sessionManager.destroy(id),
+      credentialsService,
     });
-    const app = buildApp({ db, githubConfig: config.githubConfig, sandboxService, sessionManager });
+    const app = buildApp({
+      db,
+      githubConfig: config.githubConfig,
+      sandboxService,
+      sessionManager,
+      credentialsService,
+    });
     // Guard against an empty or non-numeric PORT (e.g. a blank `PORT=` line in
     // .env): Number('') is 0, which makes Node bind a random ephemeral port.
     const parsedPort = Number(process.env.PORT);
