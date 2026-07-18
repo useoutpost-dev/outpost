@@ -43,6 +43,27 @@ if [ "$DOCKER_READY" -ne 1 ]; then
 fi
 log "dockerd ready"
 
+# --- Identity layer: seed the Claude credential file (if provided) ---
+# The server base64-encodes ONLY the credential file (never a whole ~/.claude
+# share) and passes it as OUTPOST_CLAUDE_CREDENTIALS_B64. Decode it into
+# /home/outpost/.claude/.credentials.json owned by outpost, 600 file / 700 dir.
+# A bad decode must NOT brick the sandbox (set -e is active), so guard it and
+# continue boot on failure. The value is never echoed.
+if [ -n "${OUTPOST_CLAUDE_CREDENTIALS_B64:-}" ]; then
+    CLAUDE_DIR=/home/outpost/.claude
+    CRED_FILE="$CLAUDE_DIR/.credentials.json"
+    mkdir -p "$CLAUDE_DIR"
+    if printf '%s' "${OUTPOST_CLAUDE_CREDENTIALS_B64}" | base64 -d > "$CRED_FILE" 2>/dev/null; then
+        chown outpost:outpost "$CLAUDE_DIR" "$CRED_FILE" 2>/dev/null || log "warn: could not chown Claude credential file"
+        chmod 700 "$CLAUDE_DIR" || log "warn: could not chmod Claude credential dir"
+        chmod 600 "$CRED_FILE" || log "warn: could not chmod Claude credential file"
+        log "seeded Claude credential file"
+    else
+        log "warn: OUTPOST_CLAUDE_CREDENTIALS_B64 failed to decode; continuing without seeded credentials"
+        rm -f "$CRED_FILE" 2>/dev/null || true
+    fi
+fi
+
 # --- Terminal daemon (node-pty + ws) as the non-root `outpost` user ---
 # Reachable only over Fly private networking on port 8022. It requires
 # OUTPOST_TERMINAL_TOKEN and refuses to start without it. Sandboxes created

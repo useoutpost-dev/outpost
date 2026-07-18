@@ -26,6 +26,30 @@ tools inside the sandbox can run their own containers — this is Docker-in-Dock
    New sandbox machines pick up the new image on next create; existing machines
    keep their pinned image until recreated.
 
+## Identity layer: Claude credential seeding
+
+The server may seed a single Claude Code OAuth credential file into the sandbox
+at boot. This is the **identity layer** — only the credential file crosses the
+boundary; session data, transcripts, and settings stay per-sandbox (the whole
+`~/.claude` directory is **never** shared, or usage attribution and transcripts
+would bleed between sandboxes).
+
+- **Env var:** `OUTPOST_CLAUDE_CREDENTIALS_B64` — base64-encoded content of the
+  credential file. If unset/empty, nothing is seeded and Claude Code prompts for
+  login on first use.
+- **Target path:** `/home/outpost/.claude/.credentials.json` (Claude Code runs as
+  the non-root `outpost` user with `HOME=/home/outpost`; on macOS *hosts* Claude
+  Code uses the Keychain instead, but sandboxes are Linux so this file is
+  authoritative).
+- **Permissions:** the file is `chown outpost:outpost`, `chmod 600`; its parent
+  `~/.claude` dir is `chmod 700`.
+- **Fail-open:** a decode failure logs a warning and boot continues (the sandbox
+  is never bricked by bad credentials). The env value is never echoed or logged.
+
+The path and file format are owned exclusively by
+`packages/shared/claude-adapters/src/credentials.ts`; the entrypoint only decodes
+and places the bytes.
+
 ## Terminal daemon (port 8022)
 
 The image ships a small in-sandbox WebSocket terminal daemon
