@@ -71,6 +71,34 @@ describe('normalize', () => {
     expect(normalize({})).toEqual([]);
   });
 
+  it('caps output at 500 rows per batch regardless of input cardinality', () => {
+    const datapoint = (model: string) => ({
+      attributes: [
+        { key: 'model', value: { stringValue: model } },
+        { key: 'type', value: { stringValue: 'input' } },
+      ],
+      asInt: 1,
+    });
+    const body = {
+      resourceMetrics: [
+        {
+          resource: { attributes: [{ key: 'sandbox.id', value: { stringValue: 'sbx-flood' } }] },
+          scopeMetrics: [
+            {
+              metrics: [
+                {
+                  name: 'claude_code.token.usage',
+                  sum: { dataPoints: Array.from({ length: 800 }, (_, i) => datapoint(`model-${i}`)) },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(normalize(body)).toHaveLength(500);
+  });
+
   it('never references prompt or content fields in source', () => {
     const src = readFileSync(path.join(here, '..', 'normalize.ts'), 'utf-8');
     expect(/prompt/i.test(src)).toBe(false);
