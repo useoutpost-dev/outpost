@@ -44,6 +44,8 @@ export function buildApp(opts: BuildAppOptions) {
     logger: {
       serializers: {
         // Never log the query string; it may carry the OAuth code on /auth/callback.
+        // Whitelist serializer: method + url only — request bodies (which carry
+        // API keys on POST /api/accounts) must never reach the logger.
         req(req: { method: string; url: string }) {
           return { method: req.method, url: stripUrlQuery(req.url) };
         },
@@ -126,6 +128,15 @@ export function loadBootConfig(env: NodeJS.ProcessEnv = process.env): BootConfig
 
   const collectorEndpoint = env.OUTPOST_COLLECTOR_ENDPOINT?.trim();
   if (!collectorEndpoint) throw new Error('OUTPOST_COLLECTOR_ENDPOINT is required but unset or empty');
+
+  // Fail at boot, not on the first account operation. Only the shape is checked
+  // here (32 bytes base64); crypto.ts owns the actual key derivation. The error
+  // must never echo the key value.
+  const masterKey = env.OUTPOST_MASTER_KEY?.trim();
+  if (!masterKey) throw new Error('OUTPOST_MASTER_KEY is required but unset or empty');
+  if (Buffer.from(masterKey, 'base64').length !== 32) {
+    throw new Error('OUTPOST_MASTER_KEY must be 32 bytes base64 (e.g. `openssl rand -base64 32`)');
+  }
 
   return {
     githubConfig,
