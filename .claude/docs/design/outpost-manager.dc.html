@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@500,600,700&f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<link href="https://fonts.bunny.net/css?family=ibm-plex-mono:400,500" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:#141610;}
+  a{color:#8CA870;text-decoration:none;}
+  a:hover{color:#EAE6D9;}
+  button{font-family:inherit;}
+  ::selection{background:rgba(242,169,59,0.28);}
+  @keyframes fadeInUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  @keyframes slideConfirm{from{opacity:0;transform:translateX(10px);}to{opacity:1;transform:none;}}
+  @keyframes expandDrop{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:none;}}
+  @keyframes dotPulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+  @media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important;}}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#141610;color:#EAE6D9;font-family:'Switzer',sans-serif;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;">
+
+  <header style="height:56px;flex:0 0 56px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:#1D2018;border-bottom:1px solid rgba(139,146,131,0.2);">
+    <div style="display:flex;align-items:center;gap:30px;">
+      <div style="display:flex;align-items:center;gap:11px;">
+        <span style="width:9px;height:9px;border-radius:50%;background:#F2A93B;box-shadow:0 0 8px rgba(242,169,59,0.6);"></span>
+        <span style="font-family:'Clash Grotesk',sans-serif;font-weight:600;font-size:15px;letter-spacing:0.32em;color:#EAE6D9;">OUTPOST</span>
+      </div>
+      <nav style="display:flex;gap:24px;align-items:center;">
+        <span style="font-family:'Switzer';font-size:13px;font-weight:500;color:#EAE6D9;">Sandboxes</span>
+        <span style="font-family:'Switzer';font-size:13px;font-weight:500;color:#8B9283;cursor:default;">Usage</span>
+        <span style="font-family:'Switzer';font-size:13px;font-weight:500;color:#8B9283;cursor:default;">Settings</span>
+      </nav>
+    </div>
+    <div style="display:flex;align-items:center;gap:18px;">
+      <div style="display:flex;align-items:center;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8B9283;letter-spacing:0.06em;">
+        <span>USAGE</span>
+        <div style="width:66px;height:6px;background:rgba(139,146,131,0.2);border-radius:2px;overflow:hidden;">
+          <div style="width:62%;height:100%;background:#F2A93B;"></div>
+        </div>
+        <span style="color:#EAE6D9;">62%</span>
+      </div>
+      <div style="width:28px;height:28px;border-radius:50%;background:#2A2E22;border:1px solid rgba(139,146,131,0.35);display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8B9283;">SS</div>
+    </div>
+  </header>
+
+  <main style="flex:1;padding:24px 28px 64px;">
+    <div style="max-width:1160px;margin:0 auto;">
+
+      <div style="display:inline-flex;border:1px solid rgba(139,146,131,0.22);border-radius:5px;overflow:hidden;margin-bottom:24px;">
+        <button onClick="{{ goSandboxes }}" style="{{ tabSandboxStyle }}">SANDBOXES</button>
+        <button onClick="{{ goActivity }}" style="{{ tabActivityStyle }}">ACTIVITY</button>
+      </div>
+
+      <sc-if value="{{ isSandboxes }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px;">
+            <div>
+              <h1 style="margin:0;font-family:'Clash Grotesk',sans-serif;font-weight:600;font-size:23px;letter-spacing:-0.01em;color:#EAE6D9;">Sandboxes</h1>
+              <p style="margin:6px 0 0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:0.06em;color:#8B9283;">{{ countLabel }}</p>
+            </div>
+            <button onClick="{{ newSandbox }}" style="display:inline-flex;align-items:center;gap:8px;background:#F2A93B;color:#141610;font-family:'Switzer';font-weight:600;font-size:13px;padding:9px 17px;border:none;border-radius:4px;cursor:pointer;transition:background 160ms,transform 120ms;" style-hover="background:#F5BC5F;" style-active="transform:translateY(1px);">
+              <span style="font-size:17px;line-height:0;margin-top:-1px;">+</span> New sandbox
+            </button>
+          </div>
+
+          <sc-if value="{{ hasSandboxes }}">
+            <div style="background:#1D2018;border:1px solid rgba(139,146,131,0.2);border-radius:6px;overflow:hidden;">
+              <div style="display:grid;grid-template-columns:20px minmax(180px,1.4fr) 128px 1fr 120px auto;gap:14px;align-items:center;padding:11px 16px;border-bottom:1px solid rgba(139,146,131,0.14);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#6E7568;">
+                <span></span><span>NAME</span><span>STATUS</span><span>ACCOUNT</span><span>LAST ACTIVITY</span><span style="text-align:right;"></span>
+              </div>
+              <sc-for list="{{ rows }}" as="row" hint-placeholder-count="4">
+                <div style="{{ row.wrapStyle }}">
+                  <div onClick="{{ row.toggleExpand }}" style="{{ row.summaryStyle }}" style-hover="background:rgba(234,230,217,0.02);">
+                    <span style="{{ row.caretStyle }}">›</span>
+                    <div style="min-width:0;">
+                      <div style="font-family:'Switzer';font-weight:500;font-size:14px;color:#EAE6D9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ row.name }}</div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#6E7568;margin-top:2px;">{{ row.idLabel }}</div>
+                    </div>
+                    <div><span style="{{ row.chipStyle }}"><span style="{{ row.dotStyle }}"></span>{{ row.statusLabel }}</span></div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8B9283;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ row.account }}</div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8B9283;">{{ row.lastActivity }}</div>
+                    <div onClick="{{ stopClick }}" style="display:flex;gap:6px;justify-content:flex-end;align-items:center;">
+                      <sc-if value="{{ row.confirming }}">
+                        <div style="display:flex;gap:7px;align-items:center;animation:slideConfirm 220ms ease-out both;">
+                          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.06em;color:#C05B4D;">Destroy sandbox?</span>
+                          <button onClick="{{ row.cancelDestroy }}" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;padding:6px 10px;border-radius:3px;background:transparent;border:1px solid rgba(139,146,131,0.28);color:#8B9283;cursor:pointer;" style-hover="color:#EAE6D9;">CANCEL</button>
+                          <button onClick="{{ row.confirmDestroy }}" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;padding:6px 10px;border-radius:3px;background:#C05B4D;border:1px solid #C05B4D;color:#141610;font-weight:500;cursor:pointer;" style-hover="background:#cd6a5c;">DESTROY</button>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ row.notConfirming }}">
+                        <button onClick="{{ row.onTerm }}" style="{{ row.termStyle }}" style-hover="color:#EAE6D9;background:rgba(234,230,217,0.05);">TERM</button>
+                        <button onClick="{{ row.onStop }}" style="{{ row.stopStyle }}" style-hover="color:#EAE6D9;background:rgba(234,230,217,0.05);">STOP</button>
+                        <button onClick="{{ row.onAskDestroy }}" style="{{ row.destroyStyle }}" style-hover="color:#C05B4D;border-color:rgba(192,91,77,0.5);">DESTROY</button>
+                      </sc-if>
+                    </div>
+                  </div>
+
+                  <sc-if value="{{ row.expanded }}">
+                    <div style="background:#191C14;border-top:1px solid rgba(139,146,131,0.12);padding:15px 18px 17px 34px;animation:expandDrop 240ms ease-out both;">
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#6E7568;margin-bottom:11px;">PORTS · {{ row.portCount }}</div>
+                      <sc-for list="{{ row.ports }}" as="port" hint-placeholder-count="2">
+                        <div>
+                          <div style="display:grid;grid-template-columns:66px 1fr auto;gap:16px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(139,146,131,0.08);">
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#EAE6D9;">:{{ port.port }}</span>
+                            <a href="{{ port.href }}" target="_blank" style="font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ port.url }}</a>
+                            <div style="display:flex;align-items:center;gap:11px;">
+                              <span style="{{ port.pubChipStyle }}">{{ port.pubLabel }}</span>
+                              <div onClick="{{ port.onToggle }}" style="{{ port.trackStyle }}"><div style="{{ port.knobStyle }}"></div></div>
+                            </div>
+                          </div>
+                          <sc-if value="{{ port.exposing }}">
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;background:rgba(192,91,77,0.09);border:1px solid rgba(192,91,77,0.32);border-radius:4px;padding:11px 14px;margin:8px 0 4px;animation:expandDrop 200ms ease-out both;">
+                              <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                                <span style="width:14px;height:14px;flex:0 0 14px;border-radius:2px;background:rgba(192,91,77,0.25);border:1px solid rgba(192,91,77,0.5);display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#C05B4D;">!</span>
+                                <span style="font-family:'Switzer';font-size:12.5px;color:#EAE6D9;">Expose <span style="font-family:'IBM Plex Mono',monospace;color:#C05B4D;">:{{ port.port }}</span> to the public internet? Anyone with the link can reach this sandbox.</span>
+                              </div>
+                              <div style="display:flex;gap:8px;flex:0 0 auto;">
+                                <button onClick="{{ port.onCancel }}" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;padding:7px 11px;border-radius:3px;background:transparent;border:1px solid rgba(139,146,131,0.28);color:#8B9283;cursor:pointer;" style-hover="color:#EAE6D9;">CANCEL</button>
+                                <button onClick="{{ port.onConfirm }}" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;padding:7px 12px;border-radius:3px;background:#C05B4D;border:1px solid #C05B4D;color:#141610;font-weight:500;cursor:pointer;" style-hover="background:#cd6a5c;">EXPOSE PORT</button>
+                              </div>
+                            </div>
+                          </sc-if>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isEmpty }}">
+            <div style="border:1px dashed rgba(139,146,131,0.28);border-radius:6px;background:rgba(29,32,24,0.5);padding:56px 32px;display:flex;flex-direction:column;align-items:center;text-align:center;animation:fadeIn 300ms ease both;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.16em;color:#6E7568;">NO ACTIVE SANDBOXES</div>
+              <h2 style="margin:14px 0 8px;font-family:'Clash Grotesk',sans-serif;font-weight:600;font-size:20px;color:#EAE6D9;">Nothing running yet</h2>
+              <p style="margin:0 0 20px;font-family:'Switzer';font-size:13.5px;color:#8B9283;max-width:340px;line-height:1.5;">Spin up an isolated cloud sandbox to run Claude Code in. It boots clean and tears down when you destroy it.</p>
+              <div style="display:inline-flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;color:#F2A93B;">Start with <span style="color:#EAE6D9;">New sandbox</span> ↗ up top</div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isActivity }}">
+        <div>
+          <div style="margin-bottom:18px;">
+            <h1 style="margin:0;font-family:'Clash Grotesk',sans-serif;font-weight:600;font-size:23px;letter-spacing:-0.01em;color:#EAE6D9;">Activity</h1>
+            <p style="margin:6px 0 0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:0.06em;color:#8B9283;">Sandbox lifecycle &amp; auth events · newest first</p>
+          </div>
+          <div style="background:#1D2018;border:1px solid rgba(139,146,131,0.2);border-radius:6px;overflow:hidden;">
+            <sc-for list="{{ pageEvents }}" as="ev" hint-placeholder-count="8">
+              <div style="{{ ev.rowStyle }}">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6E7568;">{{ ev.ts }}</span>
+                <span style="{{ ev.dotStyle }}"></span>
+                <span style="{{ ev.typeStyle }}">{{ ev.typeLabel }}</span>
+                <span style="font-family:'Switzer';font-size:13px;color:rgba(234,230,217,0.86);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ ev.text }}</span>
+              </div>
+            </sc-for>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid rgba(139,146,131,0.14);">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;color:#6E7568;">{{ pageLabel }}</span>
+              <div style="display:flex;gap:8px;">
+                <button onClick="{{ prevPage }}" style="{{ prevStyle }}" style-hover="color:#EAE6D9;">PREV</button>
+                <button onClick="{{ nextPage }}" style="{{ nextStyle }}" style-hover="color:#EAE6D9;">NEXT</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240,&quot;height&quot;:820},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;sandboxes&quot;,&quot;options&quot;:[&quot;sandboxes&quot;,&quot;activity&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;comfortable&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;compact&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo&quot;}}">
+class Component extends DCLogic {
+  C = { basalt:'#141610', console:'#1D2018', bone:'#EAE6D9', ash:'#8B9283', beacon:'#F2A93B', moss:'#8CA870', rust:'#C05B4D' };
+
+  state = {
+    screen: (this.props && this.props.startScreen) || 'sandboxes',
+    page: 0,
+    sandboxes: [
+      this.mk('aurora-api','running','sujan@personal','2m ago',[['3000',false],['5173',true]]),
+      this.mk('nightly-batch','creating','ci-bot@acme','just now',[['8080',false]]),
+      this.mk('lint-runner','stopping','team@acme','5m ago',[['4000',false]]),
+      this.mk('docs-preview','stopped','sujan@personal','1h ago',[['4321',false]]),
+      this.mk('webhook-relay','error','team@acme','12m ago',[['9000',false]]),
+    ],
+    events: this.seedEvents(),
+  };
+
+  mk(name, status, account, lastActivity, ports){
+    const id = 'sbx_' + Math.random().toString(16).slice(2,8);
+    return {
+      id, name, status, account, lastActivity, expanded:false, confirming:false,
+      idLabel:id,
+      ports: ports.map(([p,pub])=>({ port:p, url:`${name}-${p}.sandbox.outpost.dev`, public:pub, exposing:false })),
+    };
+  }
+
+  seedEvents(){
+    return [
+      ['14:41:52','started','aurora-api started · sujan@personal'],
+      ['14:39:10','login','sujan@personal signed in from 24.114.x.x'],
+      ['14:32:07','created','nightly-batch created · ci-bot@acme'],
+      ['14:28:44','stopped','lint-runner stopped · team@acme'],
+      ['14:11:03','destroyed','stale-fixture destroyed · sujan@personal'],
+      ['13:58:29','started','docs-preview started · sujan@personal'],
+      ['13:47:15','logout','ci-bot@acme session expired'],
+      ['13:40:02','created','webhook-relay created · team@acme'],
+      ['13:22:51','login','team@acme signed in from 51.140.x.x'],
+      ['12:59:38','stopped','image-resizer stopped · team@acme'],
+      ['12:44:19','destroyed','image-resizer destroyed · team@acme'],
+      ['12:30:07','started','lint-runner started · team@acme'],
+      ['11:52:44','created','docs-preview created · sujan@personal'],
+      ['11:31:26','login','sujan@personal signed in from 24.114.x.x'],
+      ['10:47:58','stopped','aurora-api stopped · sujan@personal'],
+      ['10:20:11','started','aurora-api started · sujan@personal'],
+      ['09:38:47','destroyed','pdf-worker destroyed · ci-bot@acme'],
+      ['09:12:33','created','pdf-worker created · ci-bot@acme'],
+      ['08:55:02','logout','sujan@personal signed out'],
+      ['08:41:20','stopped','graphql-gw stopped · team@acme'],
+      ['08:19:56','started','graphql-gw started · team@acme'],
+      ['07:50:14','login','ci-bot@acme signed in from 51.140.x.x'],
+      ['07:33:41','created','graphql-gw created · team@acme'],
+      ['07:02:09','destroyed','cache-warmer destroyed · sujan@personal'],
+      ['06:44:52','stopped','cache-warmer stopped · sujan@personal'],
+      ['06:20:38','started','cache-warmer started · sujan@personal'],
+    ].map((e,i)=>({ id:'ev'+i, ts:'07-18 '+e[0], type:e[1], text:e[2] }));
+  }
+
+  componentDidMount(){
+    this.state.sandboxes.forEach(sb=>{
+      if(sb.status==='creating') this.schedule(sb.id,'running',2200);
+      if(sb.status==='stopping') this.schedule(sb.id,'stopped',1800);
+    });
+  }
+
+  schedule(id,to,ms){ setTimeout(()=>this.patch(id,sb=>({...sb,status:to})), ms); }
+  patch(id,fn){ this.setState(s=>({sandboxes:s.sandboxes.map(sb=>sb.id===id?fn(sb):sb)})); }
+  patchPort(sid,pi,fn){ this.patch(sid,sb=>({...sb,ports:sb.ports.map((p,i)=>i===pi?fn(p):p)})); }
+
+  meta(status){
+    const C=this.C;
+    switch(status){
+      case 'running': return {label:'RUNNING',color:C.moss,tint:'rgba(140,168,112,0.1)',border:'rgba(140,168,112,0.32)',text:C.moss,dot:'solid'};
+      case 'creating': return {label:'CREATING',color:C.ash,tint:'rgba(139,146,131,0.08)',border:'rgba(139,146,131,0.28)',text:C.ash,dot:'pulse'};
+      case 'stopping': return {label:'STOPPING',color:C.ash,tint:'rgba(139,146,131,0.08)',border:'rgba(139,146,131,0.28)',text:C.ash,dot:'pulse'};
+      case 'stopped': return {label:'STOPPED',color:C.ash,tint:'transparent',border:'rgba(139,146,131,0.2)',text:'rgba(139,146,131,0.7)',dot:'hollow'};
+      case 'error': return {label:'ERROR',color:C.rust,tint:'rgba(192,91,77,0.1)',border:'rgba(192,91,77,0.34)',text:C.rust,dot:'solid'};
+    }
+  }
+
+  chipStyle(m){ return {display:'inline-flex',alignItems:'center',gap:'7px',padding:'3px 9px 3px 8px',borderRadius:'3px',background:m.tint,border:'1px solid '+m.border,fontFamily:"'IBM Plex Mono',monospace",fontSize:'10.5px',letterSpacing:'0.09em',color:m.text,whiteSpace:'nowrap'}; }
+  dotStyle(m){
+    const b={width:'6px',height:'6px',borderRadius:'50%',flex:'0 0 6px'};
+    if(m.dot==='hollow') return {...b,background:'transparent',boxShadow:'inset 0 0 0 1.5px '+m.color};
+    if(m.dot==='pulse') return {...b,background:m.color,animation:'dotPulse 1.4s ease-in-out infinite'};
+    return {...b,background:m.color};
+  }
+  btn(enabled){
+    const base={fontFamily:"'IBM Plex Mono',monospace",fontSize:'10px',letterSpacing:'0.1em',padding:'6px 10px',borderRadius:'3px',background:'transparent',border:'1px solid',lineHeight:1,transition:'color 160ms,border-color 160ms,background 160ms'};
+    if(!enabled) return {...base,color:'rgba(139,146,131,0.3)',borderColor:'rgba(139,146,131,0.12)',cursor:'not-allowed',pointerEvents:'none'};
+    return {...base,color:'#8B9283',borderColor:'rgba(139,146,131,0.28)',cursor:'pointer'};
+  }
+  destroyBtn(){ return {fontFamily:"'IBM Plex Mono',monospace",fontSize:'10px',letterSpacing:'0.1em',padding:'6px 10px',borderRadius:'3px',background:'transparent',border:'1px solid rgba(139,146,131,0.28)',color:'#8B9283',cursor:'pointer',lineHeight:1,transition:'color 160ms,border-color 160ms'}; }
+
+  eventMeta(type){
+    const C=this.C;
+    const m={
+      started:{label:'STARTED',color:C.moss},
+      created:{label:'CREATED',color:C.ash},
+      stopped:{label:'STOPPED',color:C.ash},
+      destroyed:{label:'DESTROYED',color:C.rust},
+      login:{label:'LOGIN',color:C.moss},
+      logout:{label:'LOGOUT',color:C.ash},
+    }[type];
+    return m;
+  }
+
+  renderVals(){
+    const C=this.C, st=this.state;
+    const per=8;
+    const total=st.events.length;
+    const start=st.page*per;
+    const end=Math.min(start+per,total);
+
+    const compact = ((this.props && this.props.density) || 'comfortable')==='compact';
+    const tab=(active)=>({padding:'7px 17px',fontFamily:"'IBM Plex Mono',monospace",fontSize:'11px',letterSpacing:'0.12em',cursor:'pointer',border:'none',background:active?'rgba(234,230,217,0.07)':'transparent',color:active?'#EAE6D9':'#8B9283',transition:'background 160ms,color 160ms'});
+
+    const rows = st.sandboxes.map((sb,i)=>{
+      const m=this.meta(sb.status);
+      const running = sb.status==='running';
+      return {
+        id:sb.id, name:sb.name, idLabel:sb.idLabel, account:sb.account, lastActivity:sb.lastActivity,
+        expanded:sb.expanded, confirming:sb.confirming, notConfirming:!sb.confirming,
+        statusLabel:m.label, chipStyle:this.chipStyle(m), dotStyle:this.dotStyle(m),
+        summaryStyle:{display:'grid',gridTemplateColumns:'20px minmax(180px,1.4fr) 128px 1fr 120px auto',gap:'14px',alignItems:'center',padding:compact?'8px 16px':'13px 16px',cursor:'pointer',transition:'background 140ms'},
+        wrapStyle:{borderBottom: i<st.sandboxes.length-1?'1px solid rgba(139,146,131,0.1)':'none', animation:'fadeInUp 300ms ease-out both', animationDelay:(i*35)+'ms'},
+        caretStyle:{fontFamily:"'IBM Plex Mono',monospace",fontSize:'15px',color:'#6E7568',display:'inline-block',transform:sb.expanded?'rotate(90deg)':'none',transition:'transform 220ms ease'},
+        termStyle:this.btn(running), stopStyle:this.btn(running), destroyStyle:this.destroyBtn(),
+        portCount:sb.ports.length,
+        toggleExpand:()=>this.patch(sb.id,x=>({...x,expanded:!x.expanded,confirming:false})),
+        onTerm:()=>{}, onStop:()=>{ if(running) this.stop(sb.id); },
+        onAskDestroy:()=>this.patch(sb.id,x=>({...x,confirming:true})),
+        cancelDestroy:()=>this.patch(sb.id,x=>({...x,confirming:false})),
+        confirmDestroy:()=>this.destroy(sb.id),
+        ports:sb.ports.map((p,pi)=>({
+          port:p.port, url:p.url, href:'https://'+p.url, exposing:p.exposing,
+          pubLabel:p.public?'PUBLIC':'PRIVATE',
+          pubChipStyle:{fontFamily:"'IBM Plex Mono',monospace",fontSize:'9px',letterSpacing:'0.12em',padding:'2px 6px',borderRadius:'3px',color:p.public?C.rust:'rgba(139,146,131,0.7)',background:p.public?'rgba(192,91,77,0.12)':'transparent',border:'1px solid '+(p.public?'rgba(192,91,77,0.35)':'rgba(139,146,131,0.2)')},
+          trackStyle:{position:'relative',width:'38px',height:'20px',borderRadius:'4px',cursor:'pointer',flex:'0 0 38px',transition:'background 220ms,border-color 220ms',border:'1px solid '+(p.public?'rgba(192,91,77,0.5)':'rgba(139,146,131,0.3)'),background:p.public?'rgba(192,91,77,0.22)':'rgba(139,146,131,0.14)'},
+          knobStyle:{position:'absolute',top:'2px',left:p.public?'19px':'2px',width:'15px',height:'14px',borderRadius:'3px',transition:'left 220ms ease,background 220ms',background:p.public?'#C05B4D':'#8B9283'},
+          onToggle:()=>{ if(p.public) this.patchPort(sb.id,pi,x=>({...x,public:false})); else this.patchPort(sb.id,pi,x=>({...x,exposing:true})); },
+          onConfirm:()=>this.patchPort(sb.id,pi,x=>({...x,public:true,exposing:false})),
+          onCancel:()=>this.patchPort(sb.id,pi,x=>({...x,exposing:false})),
+        })),
+      };
+    });
+
+    const pageEvents = st.events.slice(start,end).map((ev,i)=>{
+      const em=this.eventMeta(ev.type);
+      return {
+        id:ev.id, ts:ev.ts, text:ev.text, typeLabel:em.label,
+        rowStyle:{display:'grid',gridTemplateColumns:'118px 12px 88px 1fr',gap:'12px',alignItems:'center',padding:compact?'6px 16px':'9px 16px',borderBottom:'1px solid rgba(139,146,131,0.07)',animation:'fadeInUp 300ms ease-out both',animationDelay:(i*28)+'ms'},
+        dotStyle:{width:'6px',height:'6px',borderRadius:'50%',background:em.color},
+        typeStyle:{fontFamily:"'IBM Plex Mono',monospace",fontSize:'10.5px',letterSpacing:'0.1em',color:em.color},
+      };
+    });
+
+    const pbtn=(on)=>({fontFamily:"'IBM Plex Mono',monospace",fontSize:'10px',letterSpacing:'0.1em',padding:'6px 12px',borderRadius:'3px',background:'transparent',border:'1px solid rgba(139,146,131,0.28)',color:on?'#8B9283':'rgba(139,146,131,0.3)',cursor:on?'pointer':'not-allowed',pointerEvents:on?'auto':'none',transition:'color 140ms'});
+
+    return {
+      isSandboxes: st.screen==='sandboxes',
+      isActivity: st.screen==='activity',
+      goSandboxes:()=>this.setState({screen:'sandboxes'}),
+      goActivity:()=>this.setState({screen:'activity'}),
+      tabSandboxStyle: tab(st.screen==='sandboxes'),
+      tabActivityStyle: tab(st.screen==='activity'),
+      countLabel: st.sandboxes.length? `${st.sandboxes.filter(s=>s.status==='running').length} RUNNING · ${st.sandboxes.length} TOTAL` : '0 TOTAL',
+      hasSandboxes: st.sandboxes.length>0,
+      isEmpty: st.sandboxes.length===0,
+      rows,
+      newSandbox:()=>this.create(),
+      stopClick:(e)=>{ if(e && e.stopPropagation) e.stopPropagation(); },
+      pageEvents,
+      pageLabel: total? `SHOWING ${start+1}–${end} OF ${total}` : 'NO EVENTS',
+      prevPage:()=>{ if(st.page>0) this.setState(s=>({page:s.page-1})); },
+      nextPage:()=>{ if(end<total) this.setState(s=>({page:s.page+1})); },
+      prevStyle: pbtn(st.page>0),
+      nextStyle: pbtn(end<total),
+    };
+  }
+
+  stop(id){ this.patch(id,x=>({...x,status:'stopping'})); this.schedule(id,'stopped',1600); }
+  destroy(id){ this.setState(s=>({sandboxes:s.sandboxes.filter(x=>x.id!==id)})); }
+  create(){
+    const pool=['edge-proxy','cache-warmer','pdf-worker','graphql-gw','image-resizer','queue-drain'];
+    const name=pool[Math.floor(Math.random()*pool.length)]+'-'+Math.random().toString(16).slice(2,4);
+    const sb=this.mk(name,'creating','sujan@personal','just now',[['3000',false]]);
+    this.setState(s=>({sandboxes:[sb,...s.sandboxes]}));
+    this.schedule(sb.id,'running',2200);
+  }
+}
+</script>
+</body>
+</html>
