@@ -43,9 +43,33 @@ if [ "$DOCKER_READY" -ne 1 ]; then
 fi
 log "dockerd ready"
 
-# --- Forward termination so dockerd stops cleanly ---
+# --- Terminal daemon (node-pty + ws) as the non-root `outpost` user ---
+# Reachable only over Fly private networking on port 8022. It requires
+# OUTPOST_TERMINAL_TOKEN and refuses to start without it. Sandboxes created
+# before Phase 3 lack the token — those boot without a terminal (acceptable
+# pre-GA) rather than failing the whole machine.
+TERMINAL_DAEMON_PID=""
+if [ -n "${OUTPOST_TERMINAL_TOKEN:-}" ]; then
+    if [ -f /opt/terminal-daemon/server.js ]; then
+        log "starting terminal daemon on :8022 (as outpost)"
+        gosu outpost env \
+            OUTPOST_TERMINAL_TOKEN="${OUTPOST_TERMINAL_TOKEN}" \
+            HOME=/home/outpost \
+            node /opt/terminal-daemon/server.js &
+        TERMINAL_DAEMON_PID=$!
+    else
+        log "warn: terminal daemon not installed; skipping"
+    fi
+else
+    log "OUTPOST_TERMINAL_TOKEN unset; terminal daemon not started"
+fi
+
+# --- Forward termination so dockerd (and the daemon) stop cleanly ---
 shutdown() {
     log "shutting down"
+    if [ -n "$TERMINAL_DAEMON_PID" ]; then
+        kill -TERM "$TERMINAL_DAEMON_PID" 2>/dev/null || true
+    fi
     kill -TERM "$DOCKERD_PID" 2>/dev/null || true
     wait "$DOCKERD_PID" 2>/dev/null || true
     exit 0

@@ -40,6 +40,8 @@ export const sandboxes = sqliteTable('sandboxes', {
   // FK to accounts lands in Phase 4
   accountId: text('account_id'),
   status: text('status').notNull(),
+  // per-sandbox bearer token for the in-sandbox terminal daemon; null for pre-Phase-3 sandboxes
+  terminalToken: text('terminal_token'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' })
     .notNull()
     .$defaultFn(() => new Date()),

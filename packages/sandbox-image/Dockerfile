@@ -5,6 +5,33 @@
 # drops to the non-root `outpost` user for the long-lived workspace process.
 # This is DinD — the host /var/run/docker.sock is NEVER mounted or referenced.
 
+# ============================================================================
+# Build stage: compile the terminal daemon's native deps (node-pty) against the
+# SAME node major (22) as the runtime image. Kept out of the runtime image so
+# python3/make/g++ never ship in the sandbox.
+# ============================================================================
+FROM node:22-bookworm-slim AS daemon-build
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        python3 \
+        make \
+        g++; \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/terminal-daemon
+COPY terminal-daemon/package.json ./package.json
+# Compile node-pty from source; --omit=dev keeps only runtime deps.
+RUN set -eux; \
+    npm install --omit=dev --build-from-source; \
+    npm cache clean --force
+COPY terminal-daemon/server.js ./server.js
+COPY terminal-daemon/lib ./lib
+
+# ============================================================================
+# Runtime stage
+# ============================================================================
 FROM node:22-bookworm-slim
 
 # --- Pinned versions (bumps are a one-line change) ---
@@ -66,6 +93,11 @@ RUN set -eux; \
 # Telemetry on; endpoint + resource attrs are injected at machine-create time.
 # OTEL_EXPORTER_OTLP_ENDPOINT / OTEL_RESOURCE_ATTRIBUTES are intentionally unset.
 ENV CLAUDE_CODE_ENABLE_TELEMETRY=1
+
+# --- Terminal daemon (node-pty + ws) ---
+# Copied from the build stage with native deps already compiled for node 22.
+# Owned by outpost; the entrypoint runs it as `outpost` (never root).
+COPY --from=daemon-build --chown=outpost:docker /opt/terminal-daemon /opt/terminal-daemon
 
 # Fly volume mounts here at runtime; entrypoint chowns it to `outpost`.
 WORKDIR /workspace

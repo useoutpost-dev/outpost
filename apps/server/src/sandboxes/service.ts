@@ -47,6 +47,12 @@ export interface SandboxServiceDeps {
   db: Db;
   provider: SandboxProvider;
   config: { image: string; collectorEndpoint: string };
+  /**
+   * Called on stop/destroy so the terminal session manager can tear down the
+   * upstream WS + scrollback for a sandbox that no longer exists. Optional so
+   * tests without a session manager still work.
+   */
+  onTeardown?: (sandboxId: string) => void;
 }
 
 const DEFAULT_RESOURCES: SandboxResources = { cpus: 2, memoryMb: 2048, diskGb: 10 };
@@ -77,7 +83,7 @@ export interface CreateSandboxInput {
 }
 
 export function createSandboxService(deps: SandboxServiceDeps) {
-  const { db, provider, config } = deps;
+  const { db, provider, config, onTeardown } = deps;
 
   async function create(input: CreateSandboxInput): Promise<SandboxPublic> {
     const { name, resources: partialResources } = input;
@@ -91,8 +97,13 @@ export function createSandboxService(deps: SandboxServiceDeps) {
 
     const id = crypto.randomUUID();
 
+    // Per-sandbox 256-bit bearer token for the in-sandbox terminal daemon.
+    // Stored in the DB and injected into the machine env only; it must NEVER
+    // appear in event payloads or logs.
+    const terminalToken = crypto.randomBytes(32).toString('hex');
+
     // Insert row + event as 'creating'
-    insertSandbox(db, { id, name, provider: 'fly', status: 'creating' });
+    insertSandbox(db, { id, name, provider: 'fly', status: 'creating', terminalToken });
     appendSandboxEvent(db, 'sandbox.creating', id, { provider: 'fly', providerRef: null });
 
     // Compose OTEL env — provider-agnostic
@@ -102,6 +113,8 @@ export function createSandboxService(deps: SandboxServiceDeps) {
       OTEL_EXPORTER_OTLP_ENDPOINT: config.collectorEndpoint,
       OTEL_RESOURCE_ATTRIBUTES: `sandbox.id=${id}`,
       // OTEL_LOG_USER_PROMPTS is intentionally never set
+      // Terminal daemon bearer token — consumed by the in-sandbox daemon only.
+      OUTPOST_TERMINAL_TOKEN: terminalToken,
     };
 
     try {
@@ -161,6 +174,9 @@ export function createSandboxService(deps: SandboxServiceDeps) {
       providerRef: row.providerRef ?? null,
     });
 
+    // Terminal upstream is gone once the machine stops; tear the session down.
+    onTeardown?.(id);
+
     return toPublic(findSandboxById(db, id)!);
   }
 
@@ -188,6 +204,9 @@ export function createSandboxService(deps: SandboxServiceDeps) {
       provider: 'fly',
       providerRef: row.providerRef ?? null,
     });
+
+    // Terminal upstream is gone once the machine is destroyed; tear it down.
+    onTeardown?.(id);
 
     return toPublic(findSandboxById(db, id)!);
   }

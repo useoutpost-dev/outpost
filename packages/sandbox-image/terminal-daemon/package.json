@@ -1,0 +1,16 @@
+{
+  "name": "@outpost/terminal-daemon",
+  "version": "0.1.0",
+  "private": true,
+  "description": "In-sandbox WebSocket terminal daemon (node-pty + ws) for Outpost sandboxes.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js",
+    "test:smoke": "node test/smoke-client.js"
+  },
+  "dependencies": {
+    "node-pty": "1.0.0",
+    "ws": "8.18.3"
+  }
+}

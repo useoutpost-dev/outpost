@@ -41,6 +41,11 @@ export interface PortMapping {
   public: boolean;
 }
 
+export interface TerminalEndpoint {
+  /** WebSocket URL of the sandbox's terminal daemon, reachable from the server. */
+  url: string;
+}
+
 export interface SandboxProvider {
   create(spec: SandboxSpec): Promise<Sandbox>;
   stop(id: string): Promise<void>;
@@ -48,6 +53,7 @@ export interface SandboxProvider {
   get(id: string): Promise<Sandbox | null>;
   list(): Promise<Sandbox[]>;
   exec(id: string, cmd: string[]): Promise<ExecResult>;
+  terminalEndpoint(id: string): Promise<TerminalEndpoint>;
   mount(id: string, mount: VolumeMount): Promise<void>;
   ports(id: string): Promise<PortMapping[]>;
 }

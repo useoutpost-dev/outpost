@@ -6,6 +6,7 @@ import {
   type SandboxProvider,
   type SandboxSpec,
   type SandboxStatus,
+  type TerminalEndpoint,
 } from '@outpost/shared-api';
 import {
   createFlyClient,
@@ -282,6 +283,24 @@ export function createFlyProvider(config: FlyProviderConfig, fetcher?: Fetcher):
     list,
     async exec(): Promise<ExecResult> {
       return notImplemented();
+    },
+    async terminalEndpoint(id: string): Promise<TerminalEndpoint> {
+      // `id` is the Fly machine id (the providerRef used by stop/destroy).
+      // Confirm the machine exists before handing back a dial URL so a stale ref
+      // surfaces as a typed error instead of an opaque WS connect failure.
+      let machine: FlyMachine;
+      try {
+        machine = await client.getMachine(id);
+      } catch (err) {
+        if (isFlyNotFound(err)) {
+          throw new OutpostError('NOT_FOUND', 404, 'sandbox machine not found', {
+            cause: { machineId: id },
+          });
+        }
+        throw err;
+      }
+      // Fly 6PN private DNS: <machine-id>.vm.<app>.internal, daemon on port 8022.
+      return { url: `ws://${machine.id}.vm.${config.app}.internal:8022` };
     },
     async mount(): Promise<void> {
       return notImplemented();
