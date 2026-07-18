@@ -1,0 +1,115 @@
+{
+  "resourceMetrics": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "sandbox.id", "value": { "stringValue": "sbx-alpha" } },
+          { "key": "account.id", "value": { "stringValue": "acc-1" } },
+          { "key": "service.name", "value": { "stringValue": "claude-code" } }
+        ]
+      },
+      "scopeMetrics": [
+        {
+          "scope": { "name": "com.anthropic.claude_code" },
+          "metrics": [
+            {
+              "name": "claude_code.token.usage",
+              "sum": {
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      { "key": "type", "value": { "stringValue": "input" } },
+                      { "key": "model", "value": { "stringValue": "claude-sonnet-4" } }
+                    ],
+                    "asInt": "100"
+                  },
+                  {
+                    "attributes": [
+                      { "key": "type", "value": { "stringValue": "input" } },
+                      { "key": "model", "value": { "stringValue": "claude-sonnet-4" } }
+                    ],
+                    "asInt": "50"
+                  },
+                  {
+                    "attributes": [
+                      { "key": "type", "value": { "stringValue": "output" } },
+                      { "key": "model", "value": { "stringValue": "claude-sonnet-4" } }
+                    ],
+                    "asInt": "20"
+                  },
+                  {
+                    "attributes": [
+                      { "key": "type", "value": { "stringValue": "cacheRead" } },
+                      { "key": "model", "value": { "stringValue": "claude-sonnet-4" } }
+                    ],
+                    "asInt": "9"
+                  },
+                  {
+                    "attributes": [
+                      { "key": "type", "value": { "stringValue": "cacheCreation" } },
+                      { "key": "model", "value": { "stringValue": "claude-sonnet-4" } }
+                    ],
+                    "asInt": "3"
+                  },
+                  {
+                    "attributes": [
+                      { "key": "type", "value": { "stringValue": "input" } },
+                      { "key": "model", "value": { "stringValue": "claude-haiku-4" } }
+                    ],
+                    "asInt": "7"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "claude_code.cost.usage",
+              "sum": {
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      { "key": "model", "value": { "stringValue": "claude-sonnet-4" } }
+                    ],
+                    "asDouble": 0.0125
+                  },
+                  {
+                    "attributes": [
+                      { "key": "model", "value": { "stringValue": "claude-sonnet-4" } }
+                    ],
+                    "asDouble": 0.0075
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          { "key": "sandbox.id", "value": { "stringValue": "sbx-beta" } }
+        ]
+      },
+      "scopeMetrics": [
+        {
+          "metrics": [
+            {
+              "name": "claude_code.token.usage",
+              "sum": {
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      { "key": "type", "value": { "stringValue": "output" } },
+                      { "key": "model", "value": { "stringValue": "claude-sonnet-4" } }
+                    ],
+                    "asInt": "42"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

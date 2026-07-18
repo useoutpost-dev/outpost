@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const events = sqliteTable('events', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -73,3 +73,30 @@ export const sandboxes = sqliteTable('sandboxes', {
 
 export type SandboxRow = typeof sandboxes.$inferSelect;
 export type NewSandboxRow = typeof sandboxes.$inferInsert;
+
+export const usage = sqliteTable(
+  'usage',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    ts: integer('ts', { mode: 'timestamp_ms' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    sandboxId: text('sandbox_id').notNull(),
+    // nullable — sandboxes created with auth mode "none" have no account
+    accountId: text('account_id'),
+    model: text('model').notNull(),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
+    cacheWriteTokens: integer('cache_write_tokens').notNull().default(0),
+    // NOTIONAL cost — "est. API value", never real billing
+    estCostUsd: real('est_cost_usd').notNull().default(0),
+  },
+  (t) => ({
+    sandboxTsIdx: index('usage_sandbox_ts_idx').on(t.sandboxId, t.ts),
+    tsIdx: index('usage_ts_idx').on(t.ts),
+  }),
+);
+
+export type UsageRow = typeof usage.$inferSelect;
+export type UsageInsert = typeof usage.$inferInsert;

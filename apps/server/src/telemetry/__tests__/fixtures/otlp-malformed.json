@@ -1,0 +1,14 @@
+{
+  "resourceMetrics": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "claude-code" } }
+        ]
+      },
+      "scopeMetrics": "not-an-array"
+    },
+    { "unexpected": true }
+  ],
+  "extraGarbage": [1, 2, 3]
+}

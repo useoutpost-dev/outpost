@@ -16,6 +16,7 @@ import {
   makeFakeSandboxService,
   makeStubSessionManager,
   makeFakeCredentialsService,
+  testCollectorToken,
 } from './helpers.js';
 
 const LOGIN = 'octocat';
@@ -38,6 +39,7 @@ function build(user: { id: number; login: string } = { id: GITHUB_ID, login: LOG
     sandboxService: makeFakeSandboxService(db),
     sessionManager: makeStubSessionManager(),
     credentialsService: makeFakeCredentialsService(db),
+    collectorToken: testCollectorToken,
   });
   return { db, app };
 }

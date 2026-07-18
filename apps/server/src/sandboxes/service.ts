@@ -60,7 +60,7 @@ export interface CredentialsPort {
 export interface SandboxServiceDeps {
   db: Db;
   provider: SandboxProvider;
-  config: { image: string; collectorEndpoint: string };
+  config: { image: string; collectorEndpoint: string; collectorToken: string };
   /**
    * Called on stop/destroy so the terminal session manager can tear down the
    * upstream WS + scrollback for a sandbox that no longer exists. Optional so
@@ -167,6 +167,11 @@ export function createSandboxService(deps: SandboxServiceDeps) {
     const env: Record<string, string> = {
       CLAUDE_CODE_ENABLE_TELEMETRY: '1',
       OTEL_EXPORTER_OTLP_ENDPOINT: config.collectorEndpoint,
+      // Force HTTP/JSON so the collector stays dependency-free (no grpc/protobuf).
+      OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
+      // Collector bearer token as a machine env header — same known-limitations
+      // category as OUTPOST_MASTER_KEY. Sourced from config, never process.env.
+      OTEL_EXPORTER_OTLP_HEADERS: `Authorization=Bearer ${config.collectorToken}`,
       OTEL_RESOURCE_ATTRIBUTES: resourceAttrs,
       // OTEL_LOG_USER_PROMPTS is intentionally never set
       // Terminal daemon bearer token — consumed by the in-sandbox daemon only.

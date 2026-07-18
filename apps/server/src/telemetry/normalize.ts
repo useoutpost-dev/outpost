@@ -1,0 +1,190 @@
+import type { UsageInsert } from '../db/schema.js';
+
+/**
+ * Pure OTLP/HTTP JSON → UsageInsert[] normalizer.
+ *
+ * Reads only the enumerated numeric usage signals plus the sandbox/account
+ * identity resource attributes. Every other field in the payload is dropped
+ * before any output object is built. Never throws — any malformed shape yields
+ * an empty array. No I/O imports.
+ *
+ * Recognized metrics:
+ *   - `claude_code.token.usage`  (datapoint attr `type` ∈ input|output|cacheRead|cacheCreation)
+ *   - `claude_code.cost.usage`
+ * Resource attrs: `sandbox.id` (required), `account.id` (optional).
+ * One OTLP batch collapses to one row per (sandboxId, model) pair.
+ */
+
+const TOKEN_METRIC = 'claude_code.token.usage';
+const COST_METRIC = 'claude_code.cost.usage';
+
+// Bounds output cardinality per batch: the 1MB body limit alone still admits
+// thousands of unique (sandboxId, model) pairs from a hostile sandbox.
+const MAX_ROWS_PER_BATCH = 500;
+
+interface Accumulator {
+  sandboxId: string;
+  accountId: string | null;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  estCostUsd: number;
+}
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
+}
+
+function asArray(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
+}
+
+/** Read an OTLP attribute value as a string ({stringValue}) or numeric-as-string. */
+function readAttrString(value: unknown): string | undefined {
+  if (!isObject(value)) return undefined;
+  if (typeof value.stringValue === 'string') return value.stringValue;
+  if (typeof value.intValue === 'string') return value.intValue;
+  if (typeof value.intValue === 'number') return String(value.intValue);
+  return undefined;
+}
+
+/** Build a { key: string } lookup from an OTLP attributes array. */
+function readAttrs(attrs: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const raw of asArray(attrs)) {
+    if (!isObject(raw)) continue;
+    if (typeof raw.key !== 'string') continue;
+    const val = readAttrString(raw.value);
+    if (val !== undefined) out[raw.key] = val;
+  }
+  return out;
+}
+
+/** Read an OTLP numeric datapoint value (asDouble / asInt), 0 when absent. */
+function readNumber(dp: Record<string, unknown>): number {
+  if (typeof dp.asDouble === 'number') return dp.asDouble;
+  if (typeof dp.asInt === 'number') return dp.asInt;
+  if (typeof dp.asInt === 'string') {
+    const n = Number(dp.asInt);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (typeof dp.asDouble === 'string') {
+    const n = Number(dp.asDouble);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+function getAcc(map: Map<string, Accumulator>, sandboxId: string, accountId: string | null, model: string): Accumulator | undefined {
+  const key = `${sandboxId}\x00${model}`;
+  let acc = map.get(key);
+  if (!acc) {
+    if (map.size >= MAX_ROWS_PER_BATCH) return undefined;
+    acc = {
+      sandboxId,
+      accountId,
+      model,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      estCostUsd: 0,
+    };
+    map.set(key, acc);
+  }
+  return acc;
+}
+
+function applyTokenDatapoints(acc: Map<string, Accumulator>, sandboxId: string, accountId: string | null, datapoints: unknown): void {
+  for (const rawDp of asArray(datapoints)) {
+    if (!isObject(rawDp)) continue;
+    const attrs = readAttrs(rawDp.attributes);
+    const model = attrs['model'];
+    const type = attrs['type'];
+    if (!model || !type) continue;
+    const value = readNumber(rawDp);
+    const bucket = getAcc(acc, sandboxId, accountId, model);
+    if (!bucket) continue;
+    switch (type) {
+      case 'input':
+        bucket.inputTokens += value;
+        break;
+      case 'output':
+        bucket.outputTokens += value;
+        break;
+      case 'cacheRead':
+        bucket.cacheReadTokens += value;
+        break;
+      case 'cacheCreation':
+        bucket.cacheWriteTokens += value;
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+function applyCostDatapoints(acc: Map<string, Accumulator>, sandboxId: string, accountId: string | null, datapoints: unknown): void {
+  for (const rawDp of asArray(datapoints)) {
+    if (!isObject(rawDp)) continue;
+    const attrs = readAttrs(rawDp.attributes);
+    const model = attrs['model'];
+    if (!model) continue;
+    const bucket = getAcc(acc, sandboxId, accountId, model);
+    if (!bucket) continue;
+    bucket.estCostUsd += readNumber(rawDp);
+  }
+}
+
+export function normalize(body: unknown): UsageInsert[] {
+  try {
+    if (!isObject(body)) return [];
+    const acc = new Map<string, Accumulator>();
+
+    for (const rawResourceMetrics of asArray(body.resourceMetrics)) {
+      if (!isObject(rawResourceMetrics)) continue;
+
+      const resource = rawResourceMetrics.resource;
+      const resourceAttrs = isObject(resource) ? readAttrs(resource.attributes) : {};
+      const sandboxId = resourceAttrs['sandbox.id'];
+      if (!sandboxId) continue;
+      const accountId = resourceAttrs['account.id'] ?? null;
+
+      for (const rawScope of asArray(rawResourceMetrics.scopeMetrics)) {
+        if (!isObject(rawScope)) continue;
+        for (const rawMetric of asArray(rawScope.metrics)) {
+          if (!isObject(rawMetric)) continue;
+          const name = rawMetric.name;
+          if (typeof name !== 'string') continue;
+
+          // OTLP wraps datapoints in one of sum/gauge; read whichever is present.
+          const sum = isObject(rawMetric.sum) ? rawMetric.sum.dataPoints : undefined;
+          const gauge = isObject(rawMetric.gauge) ? rawMetric.gauge.dataPoints : undefined;
+          const datapoints = sum ?? gauge;
+
+          if (name === TOKEN_METRIC) {
+            applyTokenDatapoints(acc, sandboxId, accountId, datapoints);
+          } else if (name === COST_METRIC) {
+            applyCostDatapoints(acc, sandboxId, accountId, datapoints);
+          }
+        }
+      }
+    }
+
+    return Array.from(acc.values()).map((a) => ({
+      sandboxId: a.sandboxId,
+      accountId: a.accountId,
+      model: a.model,
+      inputTokens: a.inputTokens,
+      outputTokens: a.outputTokens,
+      cacheReadTokens: a.cacheReadTokens,
+      cacheWriteTokens: a.cacheWriteTokens,
+      estCostUsd: a.estCostUsd,
+    }));
+  } catch {
+    // Defensive: normalize is contractually total. Any unexpected shape → [].
+    return [];
+  }
+}

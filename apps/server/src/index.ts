@@ -14,6 +14,8 @@ import type { CredentialsService } from './credentials/service.js';
 import { registerTerminalRoute } from './terminal/ws.js';
 import type { SessionManager } from './terminal/session-manager.js';
 import { findSandboxById } from './sandboxes/sandboxes.repo.js';
+import { registerCollectorRoutes } from './telemetry/collector.js';
+import { registerUsageRoutes } from './telemetry/routes.js';
 
 export interface BuildAppOptions {
   db: Db;
@@ -26,6 +28,8 @@ export interface BuildAppOptions {
   sessionManager: SessionManager;
   /** Credential/account service — backs the /api/accounts routes. */
   credentialsService: CredentialsService;
+  /** Bearer token the OTLP collector (`POST /v1/metrics`) requires. */
+  collectorToken: string;
 }
 
 /**
@@ -39,7 +43,15 @@ export function stripUrlQuery(url: string): string {
 }
 
 export function buildApp(opts: BuildAppOptions) {
-  const { db, githubConfig, fetcher, sandboxService, sessionManager, credentialsService } = opts;
+  const {
+    db,
+    githubConfig,
+    fetcher,
+    sandboxService,
+    sessionManager,
+    credentialsService,
+    collectorToken,
+  } = opts;
   const app = Fastify({
     logger: {
       serializers: {
@@ -76,6 +88,8 @@ export function buildApp(opts: BuildAppOptions) {
   registerAuthRoutes(app, { db, githubConfig, fetcher });
   registerSandboxRoutes(app, { service: sandboxService });
   registerCredentialRoutes(app, { service: credentialsService });
+  registerCollectorRoutes(app, { db, collectorToken });
+  registerUsageRoutes(app, { db });
 
   // WS route registration must be inside a plugin scope that has @fastify/websocket
   // loaded; register after the plugin above so `{ websocket: true }` is recognized.
@@ -103,7 +117,7 @@ export interface SandboxBootConfig {
 export interface BootConfig {
   githubConfig: GithubConfig;
   fly: SandboxBootConfig;
-  sandbox: { image: string; collectorEndpoint: string };
+  sandbox: { image: string; collectorEndpoint: string; collectorToken: string };
 }
 
 /** Validate all required boot-time env; throw a loud error on any problem. */
@@ -129,6 +143,15 @@ export function loadBootConfig(env: NodeJS.ProcessEnv = process.env): BootConfig
   const collectorEndpoint = env.OUTPOST_COLLECTOR_ENDPOINT?.trim();
   if (!collectorEndpoint) throw new Error('OUTPOST_COLLECTOR_ENDPOINT is required but unset or empty');
 
+  // Bearer token gating POST /v1/metrics and injected into every sandbox's
+  // OTEL_EXPORTER_OTLP_HEADERS. Fail at boot, not on the first metric flush.
+  // The error must never echo the token value.
+  const collectorToken = env.OUTPOST_COLLECTOR_TOKEN?.trim();
+  if (!collectorToken) throw new Error('OUTPOST_COLLECTOR_TOKEN is required but unset or empty');
+  if (collectorToken.length < 32) {
+    throw new Error('OUTPOST_COLLECTOR_TOKEN must be at least 32 characters (e.g. `openssl rand -hex 32`)');
+  }
+
   // Fail at boot, not on the first account operation. Only the shape is checked
   // here (32 bytes base64); crypto.ts owns the actual key derivation. The error
   // must never echo the key value.
@@ -141,7 +164,7 @@ export function loadBootConfig(env: NodeJS.ProcessEnv = process.env): BootConfig
   return {
     githubConfig,
     fly: { apiToken: flyApiToken, app: flyApp, region: flyRegion },
-    sandbox: { image: sandboxImage, collectorEndpoint },
+    sandbox: { image: sandboxImage, collectorEndpoint, collectorToken },
   };
 }
 
@@ -185,6 +208,7 @@ if (isDirectRun) {
       sandboxService,
       sessionManager,
       credentialsService,
+      collectorToken: config.sandbox.collectorToken,
     });
     // Guard against an empty or non-numeric PORT (e.g. a blank `PORT=` line in
     // .env): Number('') is 0, which makes Node bind a random ephemeral port.

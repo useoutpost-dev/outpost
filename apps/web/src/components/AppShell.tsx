@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Terminal } from '../screens/Terminal';
 import { SandboxCreate } from '../screens/SandboxCreate';
+import { Usage } from '../screens/Usage';
 
 interface AppShellProps {
   login?: string;
@@ -15,7 +16,8 @@ interface SandboxItem {
 type View =
   | { kind: 'list' }
   | { kind: 'create' }
-  | { kind: 'terminal'; sandboxId: string; name: string };
+  | { kind: 'terminal'; sandboxId: string; name: string }
+  | { kind: 'usage' };
 
 export function AppShell({ login }: AppShellProps) {
   const [view, setView] = useState<View>({ kind: 'list' });
@@ -41,6 +43,10 @@ export function AppShell({ login }: AppShellProps) {
         setLoading(false);
       });
   }, [view]);
+
+  if (view.kind === 'usage') {
+    return <Usage onBack={() => setView({ kind: 'list' })} />;
+  }
 
   if (view.kind === 'terminal') {
     return (
@@ -68,7 +74,14 @@ export function AppShell({ login }: AppShellProps) {
         <span className="select-none font-display text-sm font-semibold uppercase tracking-[0.25em] text-bonewhite">
           OUTPOST
         </span>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => setView({ kind: 'usage' })}
+            className="font-mono text-xs text-ash hover:text-bonewhite"
+          >
+            Usage
+          </button>
           {login && <span className="font-mono text-xs text-ash">{login}</span>}
         </div>
       </header>
