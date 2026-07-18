@@ -15,6 +15,7 @@ import { registerTerminalRoute } from './terminal/ws.js';
 import type { SessionManager } from './terminal/session-manager.js';
 import { findSandboxById } from './sandboxes/sandboxes.repo.js';
 import { registerCollectorRoutes } from './telemetry/collector.js';
+import { registerUsageRoutes } from './telemetry/routes.js';
 
 export interface BuildAppOptions {
   db: Db;
@@ -88,6 +89,7 @@ export function buildApp(opts: BuildAppOptions) {
   registerSandboxRoutes(app, { service: sandboxService });
   registerCredentialRoutes(app, { service: credentialsService });
   registerCollectorRoutes(app, { db, collectorToken });
+  registerUsageRoutes(app, { db });
 
   // WS route registration must be inside a plugin scope that has @fastify/websocket
   // loaded; register after the plugin above so `{ websocket: true }` is recognized.

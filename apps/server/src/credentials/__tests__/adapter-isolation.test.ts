@@ -4,10 +4,12 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 // Enforce the architecture boundary: ONLY files under
-// apps/server/src/credentials/ may import @outpost/claude-adapters. Any other
-// server module reaching for Claude Code internals is a rejection.
+// apps/server/src/credentials/ or apps/server/src/telemetry/ may import
+// @outpost/claude-adapters. Any other server module reaching for Claude Code
+// internals is a rejection. (telemetry/ was added in phase 5.)
 const serverSrc = path.resolve(fileURLToPath(import.meta.url), '../../../');
 const credentialsDir = path.join(serverSrc, 'credentials');
+const telemetryDir = path.join(serverSrc, 'telemetry');
 
 function walk(dir: string): string[] {
   const out: string[] = [];
@@ -28,6 +30,7 @@ describe('adapter isolation', () => {
     const offenders: string[] = [];
     for (const file of walk(serverSrc)) {
       if (file.startsWith(credentialsDir + path.sep)) continue;
+      if (file.startsWith(telemetryDir + path.sep)) continue;
       const content = fs.readFileSync(file, 'utf8');
       if (content.includes('@outpost/claude-adapters')) {
         offenders.push(path.relative(serverSrc, file));
