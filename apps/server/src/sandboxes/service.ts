@@ -81,6 +81,7 @@ export interface SandboxPublic {
   name: string;
   provider: string;
   status: string;
+  accountId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -91,6 +92,7 @@ function toPublic(row: SandboxRow): SandboxPublic {
     name: row.name,
     provider: row.provider,
     status: row.status,
+    accountId: row.accountId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

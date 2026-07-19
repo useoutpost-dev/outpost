@@ -240,4 +240,25 @@ describe('boot config', () => {
     expect(config.sandbox.image).toBe('ghcr.io/outpost/sandbox:latest');
     expect(config.sandbox.collectorToken).toBe('x'.repeat(32));
   });
+
+  it('accepts and normalizes a valid OUTPOST_PREVIEW_DOMAIN', () => {
+    const config = loadBootConfig({
+      ...fullEnv,
+      OUTPOST_PREVIEW_DOMAIN: 'Sandbox.Outpost.Dev',
+    });
+
+    expect(config.previewDomain).toBe('sandbox.outpost.dev');
+  });
+
+  it.each([
+    'https://sandbox.outpost.dev',
+    'sandbox.outpost.dev:443',
+    'sandbox.outpost.dev/path',
+    'localhost',
+  ])('rejects invalid OUTPOST_PREVIEW_DOMAIN %s', (previewDomain) => {
+    expect(() => loadBootConfig({
+      ...fullEnv,
+      OUTPOST_PREVIEW_DOMAIN: previewDomain,
+    })).toThrow(/OUTPOST_PREVIEW_DOMAIN/);
+  });
 });

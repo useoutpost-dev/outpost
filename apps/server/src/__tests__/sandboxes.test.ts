@@ -263,7 +263,24 @@ describe('sandbox routes — happy paths', () => {
     expect(body.status).toBe('running');
     expect('providerRef' in body).toBe(false);
     expect('volumeRef' in body).toBe(false);
-    expect('accountId' in body).toBe(false);
+    expect(body.accountId).toBeNull();
+  });
+
+  it('includes the attached accountId in the public response', async () => {
+    const db = makeTestDb();
+    const service = createSandboxService({
+      db,
+      provider: makeFakeProvider(),
+      config: testSandboxConfig,
+      credentialsService: {
+        envForAccount: async () => ({}),
+        captureFromSandbox: async () => false,
+      },
+    });
+
+    const result = await service.create({ name: 'account-box', accountId: 'account-1' });
+
+    expect(result.accountId).toBe('account-1');
   });
 
   it('404 unknown id on GET', async () => {

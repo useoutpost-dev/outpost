@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import websocket from '@fastify/websocket';
+import type { LookupFunction } from 'node:net';
 import { OutpostError } from '@outpost/shared-api';
 import { runMigrations } from './db/migrate.js';
 import type { Db } from './db/client.js';
@@ -16,6 +17,10 @@ import type { SessionManager } from './terminal/session-manager.js';
 import { findSandboxById } from './sandboxes/sandboxes.repo.js';
 import { registerCollectorRoutes } from './telemetry/collector.js';
 import { registerUsageRoutes } from './telemetry/routes.js';
+import { registerPortRoutes } from './proxy/routes.js';
+import { registerPreviewProxy, type ResolveTarget } from './proxy/proxy.js';
+import { PreviewGrantStore } from './proxy/grants.js';
+import { registerEventRoutes } from './events/routes.js';
 
 export interface BuildAppOptions {
   db: Db;
@@ -30,6 +35,18 @@ export interface BuildAppOptions {
   credentialsService: CredentialsService;
   /** Bearer token the OTLP collector (`POST /v1/metrics`) requires. */
   collectorToken: string;
+  /** Bare preview domain (no scheme/port). When set, the preview proxy is wired. */
+  previewDomain?: string;
+  /**
+   * Resolves a sandbox row + port to a forward address. Required only when
+   * `previewDomain` is set. Production supplies the Fly 6PN internal-DNS impl;
+   * tests inject a resolver pointing at a fake upstream server.
+   */
+  resolveTarget?: ResolveTarget;
+  /** @internal Test-only DNS lookup for fake upstream socket tests. */
+  proxyLookup?: LookupFunction;
+  /** Injectable clock-backed store for preview-grant tests. */
+  previewGrants?: PreviewGrantStore;
 }
 
 /**
@@ -51,7 +68,12 @@ export function buildApp(opts: BuildAppOptions) {
     sessionManager,
     credentialsService,
     collectorToken,
+    previewDomain,
+    resolveTarget,
+    proxyLookup,
+    previewGrants: injectedPreviewGrants,
   } = opts;
+  const previewGrants = injectedPreviewGrants ?? new PreviewGrantStore();
   const app = Fastify({
     logger: {
       serializers: {
@@ -67,6 +89,11 @@ export function buildApp(opts: BuildAppOptions) {
 
   app.setErrorHandler((err, _req, reply) => {
     if (OutpostError.is(err)) {
+      // Log only allowlisted metadata. Provider causes can contain raw Fly
+      // response bodies and machine environment values, so they stay private.
+      if (err.httpStatus >= 500) {
+        app.log.error({ code: err.code, httpStatus: err.httpStatus }, 'OutpostError');
+      }
       return reply.status(err.httpStatus).send(err.toJSON());
     }
     app.log.error(err);
@@ -84,12 +111,31 @@ export function buildApp(opts: BuildAppOptions) {
 
   app.get('/health', () => ({ ok: true }));
 
+  // Preview proxy hook must run BEFORE the auth gate: a matched preview request
+  // is hijacked and never reaches session auth (public ports must work without a
+  // cookie; private ports are checked inside the proxy). Only wired when a
+  // preview domain is configured; otherwise preview hosts hit normal routing.
+  if (previewDomain) {
+    if (!resolveTarget) {
+      throw new Error('previewDomain is set but resolveTarget was not provided to buildApp');
+    }
+    registerPreviewProxy(app, {
+      db,
+      previewDomain,
+      previewGrants,
+      resolveTarget,
+      lookup: proxyLookup,
+    });
+  }
+
   registerAuthGate(app, db);
   registerAuthRoutes(app, { db, githubConfig, fetcher });
   registerSandboxRoutes(app, { service: sandboxService });
   registerCredentialRoutes(app, { service: credentialsService });
   registerCollectorRoutes(app, { db, collectorToken });
   registerUsageRoutes(app, { db });
+  registerEventRoutes(app, { db });
+  registerPortRoutes(app, { db, previewDomain, previewGrants });
 
   // WS route registration must be inside a plugin scope that has @fastify/websocket
   // loaded; register after the plugin above so `{ websocket: true }` is recognized.
@@ -118,6 +164,8 @@ export interface BootConfig {
   githubConfig: GithubConfig;
   fly: SandboxBootConfig;
   sandbox: { image: string; collectorEndpoint: string; collectorToken: string };
+  /** Optional bare preview domain; when absent the preview proxy is not wired. */
+  previewDomain?: string;
 }
 
 /** Validate all required boot-time env; throw a loud error on any problem. */
@@ -161,10 +209,27 @@ export function loadBootConfig(env: NodeJS.ProcessEnv = process.env): BootConfig
     throw new Error('OUTPOST_MASTER_KEY must be 32 bytes base64 (e.g. `openssl rand -base64 32`)');
   }
 
+  // Optional. When set, must be a bare domain (no scheme, no port, no path).
+  // Mirrors the OUTPOST_COLLECTOR_TOKEN optional/required env style: validated
+  // at boot so a malformed value fails loud instead of silently disabling the
+  // proxy. When absent, the preview proxy is simply not wired.
+  const rawPreviewDomain = env.OUTPOST_PREVIEW_DOMAIN?.trim();
+  let previewDomain: string | undefined;
+  if (rawPreviewDomain) {
+    if (/^[a-z]+:\/\//i.test(rawPreviewDomain) || rawPreviewDomain.includes('/') || rawPreviewDomain.includes(':')) {
+      throw new Error('OUTPOST_PREVIEW_DOMAIN must be a bare domain (no scheme, port, or path)');
+    }
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(rawPreviewDomain)) {
+      throw new Error('OUTPOST_PREVIEW_DOMAIN is not a valid domain');
+    }
+    previewDomain = rawPreviewDomain.toLowerCase();
+  }
+
   return {
     githubConfig,
     fly: { apiToken: flyApiToken, app: flyApp, region: flyRegion },
     sandbox: { image: sandboxImage, collectorEndpoint, collectorToken },
+    ...(previewDomain ? { previewDomain } : {}),
   };
 }
 
@@ -202,6 +267,16 @@ if (isDirectRun) {
       onTeardown: (id) => sessionManager.destroy(id),
       credentialsService,
     });
+    // Fly 6PN internal DNS: <machine-id>.vm.<app>.internal (same shape the
+    // terminal endpoint uses). The target address is derived ONLY from the DB
+    // sandbox row's providerRef — never from the request Host/path/query.
+    const resolveTarget: ResolveTarget = async (sandbox, port) => {
+      if (!sandbox.providerRef) {
+        throw new Error('sandbox has no providerRef; cannot resolve preview target');
+      }
+      return { hostname: `${sandbox.providerRef}.vm.${config.fly.app}.internal`, port };
+    };
+
     const app = buildApp({
       db,
       githubConfig: config.githubConfig,
@@ -209,6 +284,8 @@ if (isDirectRun) {
       sessionManager,
       credentialsService,
       collectorToken: config.sandbox.collectorToken,
+      previewDomain: config.previewDomain,
+      resolveTarget,
     });
     // Guard against an empty or non-numeric PORT (e.g. a blank `PORT=` line in
     // .env): Number('') is 0, which makes Node bind a random ephemeral port.

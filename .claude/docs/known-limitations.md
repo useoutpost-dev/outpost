@@ -64,3 +64,44 @@ manually after a rotation event.
 
 **Mitigation:** Back up `OUTPOST_MASTER_KEY` offline before rotating. Treat key loss the
 same as losing a password manager master password.
+
+---
+
+## Preview wildcard TLS and DNS (Phase 6)
+
+**What:** Preview URLs require wildcard DNS and a matching wildcard TLS certificate for
+`*.OUTPOST_PREVIEW_DOMAIN`; setting the environment variable does not provision either.
+
+**Why accepted:** DNS and certificate ownership are deployment-specific and remain under
+the self-hosting operator's control.
+
+**Mitigation:** Configure the wildcard DNS record and certificate before enabling the
+preview domain. Keep the proxy disabled when either is unavailable.
+
+---
+
+## Live Fly preview HMR (Phase 6)
+
+**What:** HTTP and WebSocket proxy behavior is covered locally, but framework HMR over a
+live Fly deployment has not been validated end to end and may depend on framework-specific
+host, origin, or secure-WebSocket settings.
+
+**Why accepted:** Live Fly validation requires deployed infrastructure and application-
+specific dev-server configuration outside the Phase 6 test harness.
+
+**Mitigation:** Treat HMR as best-effort until verified on the target Fly deployment; use
+a full page reload or configure the dev server's public host and WSS settings if needed.
+
+---
+
+## Preview grants are process-local (Phase 6)
+
+**What:** Private-preview exchange codes and cookies are held in bounded server memory.
+They expire after five minutes and are invalidated by a server restart. A multi-replica
+server deployment would require sticky routing or a shared grant store.
+
+**Why accepted:** Tier 0 is a single-user, single-server self-hosted deployment. Keeping
+the short-lived grants out of the database also avoids persisting bearer material.
+
+**Mitigation:** Run one Outpost server replica. Reopen the private preview from the manager
+after a restart; the manager will mint a new audience-bound one-time exchange URL.
