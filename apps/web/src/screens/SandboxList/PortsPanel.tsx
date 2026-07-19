@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { PortInfo, PortsListResponse } from '@outpost/shared-api';
+import type { PortInfo, PortsListResponse, PreviewGrantResponse } from '@outpost/shared-api';
 
 interface PortsPanelProps {
   sandboxId: string;
@@ -20,6 +20,7 @@ export function PortsPanel({ sandboxId, expanded }: PortsPanelProps) {
   const [addInput, setAddInput] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
   const [addPending, setAddPending] = useState(false);
+  const [openingPort, setOpeningPort] = useState<number | null>(null);
   const prevExpanded = useRef(false);
 
   useEffect(() => {
@@ -122,6 +123,48 @@ export function PortsPanel({ sandboxId, expanded }: PortsPanelProps) {
       });
   }
 
+  function handlePreviewClick(e: React.MouseEvent<HTMLAnchorElement>, port: PortInfo) {
+    if (port.public) return;
+    e.preventDefault();
+    setOpeningPort(port.port);
+    setError(null);
+
+    // Open synchronously so browsers do not treat the eventual navigation as a
+    // popup. Sever the opener before the preview app receives control.
+    const targetName = `outpost-preview-${sandboxId}-${port.port}-${Date.now()}`;
+    const previewWindow = window.open('about:blank', targetName);
+    if (previewWindow) previewWindow.opener = null;
+
+    fetch(`/api/sandboxes/${sandboxId}/ports/${port.port}/grant`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json() as Promise<PreviewGrantResponse>;
+      })
+      .then(({ url, grant }) => {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = url;
+        form.target = previewWindow ? targetName : '_self';
+        form.style.display = 'none';
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'grant';
+        input.value = grant;
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+        form.remove();
+      })
+      .catch((err: unknown) => {
+        previewWindow?.close();
+        setError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setOpeningPort(null));
+  }
+
   function handleAddPort(e: React.FormEvent) {
     e.preventDefault();
     const num = parseInt(addInput, 10);
@@ -184,9 +227,11 @@ export function PortsPanel({ sandboxId, expanded }: PortsPanelProps) {
                       href={port.url}
                       target="_blank"
                       rel="noopener noreferrer"
+                      aria-busy={openingPort === port.port}
+                      onClick={(e) => handlePreviewClick(e, port)}
                       className="block overflow-hidden text-ellipsis whitespace-nowrap font-mono text-xs text-moss hover:text-bonewhite"
                     >
-                      {port.url}
+                      {openingPort === port.port ? 'authorizing preview…' : port.url}
                     </a>
                   ) : (
                     <span className="font-mono text-xs text-ash/60">
@@ -200,8 +245,8 @@ export function PortsPanel({ sandboxId, expanded }: PortsPanelProps) {
                     className={[
                       'font-mono text-[9px] tracking-[0.12em] px-1.5 py-0.5 rounded-sm border',
                       port.public
-                        ? 'text-rust bg-rust/10 border-rust/35'
-                        : 'text-ash/70 bg-transparent border-ash/20',
+                        ? 'text-moss bg-moss/10 border-moss/35'
+                        : 'text-ash/70 bg-ash/10 border-ash/20',
                     ].join(' ')}
                   >
                     {port.public ? 'PUBLIC' : 'PRIVATE'}

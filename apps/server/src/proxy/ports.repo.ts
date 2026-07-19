@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { events, ports, type NewPortRow, type PortRow } from '../db/schema.js';
+import { events, ports, type PortInsert, type PortRow } from '../db/schema.js';
 
 /** All registered ports for a sandbox, newest last (stable insert order). */
 export function listPorts(db: Db, sandboxId: string): PortRow[] {
@@ -17,9 +17,9 @@ export function getPort(db: Db, sandboxId: string, port: number): PortRow | unde
 
 /**
  * Insert a port row. Throws on a unique-constraint violation
- * (`ports_sandbox_port_idx`); the route handler catches and maps to 409.
+ * (`ports_sandbox_port_uniq`); the route handler catches and maps to 409.
  */
-export function createPort(db: Db, insert: NewPortRow): PortRow {
+export function createPort(db: Db, insert: PortInsert): PortRow {
   db.insert(ports).values(insert).run();
   const row = getPort(db, insert.sandboxId, insert.port);
   if (!row) throw new Error('createPort: row not found after insert');

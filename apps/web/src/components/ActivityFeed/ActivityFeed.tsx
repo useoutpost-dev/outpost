@@ -37,9 +37,13 @@ function typeTextClass(variant: DotVariant): string {
   }
 }
 
-function eventText(record: EventRecord): string {
+export function eventText(record: EventRecord): string {
   try {
-    const payload = record.payload as Record<string, unknown> | null | undefined;
+    const parsed = typeof record.payload === 'string'
+      ? JSON.parse(record.payload) as unknown
+      : record.payload;
+    if (parsed !== null && typeof parsed !== 'object') return record.kind;
+    const payload = parsed as Record<string, unknown> | null | undefined;
     const sid = record.sandboxId ?? '';
     switch (record.kind) {
       case 'sandbox.creating': return `${sid} creating`;

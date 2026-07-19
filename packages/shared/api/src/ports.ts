@@ -18,3 +18,11 @@ export interface PortCreateBody {
 export interface PortPatchBody {
   public: boolean;
 }
+
+export interface PreviewGrantResponse {
+  /** Fixed preview-host endpoint that accepts the grant in a top-level POST body. */
+  url: string;
+  /** One-time opaque exchange code, scoped to the exact sandbox and port. */
+  grant: string;
+  expiresAt: number;
+}

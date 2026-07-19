@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../index.js';
 import { createSession } from '../../auth/auth.repo.js';
 import { generateSessionToken, SESSION_COOKIE_NAME } from '../../auth/session.js';
-import { insertSandbox } from '../../sandboxes/sandboxes.repo.js';
+import { insertSandbox, updateSandboxStatus } from '../../sandboxes/sandboxes.repo.js';
 import { events } from '../../db/schema.js';
 import {
   makeTestDb,
@@ -34,7 +34,7 @@ function seedSandbox(db: Db): string {
   return row.id;
 }
 
-function makeApp() {
+function makeApp(withPreview = false) {
   const db = makeTestDb();
   const app = buildApp({
     db,
@@ -43,6 +43,15 @@ function makeApp() {
     sessionManager: makeStubSessionManager(),
     credentialsService: makeFakeCredentialsService(db),
     collectorToken: testCollectorToken,
+    ...(withPreview
+      ? {
+          previewDomain: 'sandbox.outpost.dev',
+          resolveTarget: async () => ({
+            hostname: 'machine-1.vm.test-app.internal',
+            port: 3000,
+          }),
+        }
+      : {}),
   });
   const token = generateSessionToken();
   createSession(db, token, { githubId: GITHUB_ID, githubLogin: 'octocat' });
@@ -159,6 +168,65 @@ describe('ports routes', () => {
       payload: { port: 3000 },
     });
     expect(post.statusCode).toBe(401);
+    const patch = await app.inject({
+      method: 'PATCH',
+      url: `/api/sandboxes/${id}/ports/3000`,
+      payload: { public: true },
+    });
+    expect(patch.statusCode).toBe(401);
+    const del = await app.inject({
+      method: 'DELETE',
+      url: `/api/sandboxes/${id}/ports/3000`,
+    });
+    expect(del.statusCode).toBe(401);
+  });
+
+  it('mints a private preview grant only for an authenticated manager', async () => {
+    const { app, id, cookie } = makeApp(true);
+    await app.inject({
+      method: 'POST',
+      url: `/api/sandboxes/${id}/ports`,
+      headers: { cookie },
+      payload: { port: 3000 },
+    });
+
+    const unauthenticated = await app.inject({
+      method: 'POST',
+      url: `/api/sandboxes/${id}/ports/3000/grant`,
+    });
+    expect(unauthenticated.statusCode).toBe(401);
+
+    const minted = await app.inject({
+      method: 'POST',
+      url: `/api/sandboxes/${id}/ports/3000/grant`,
+      headers: { cookie },
+    });
+    expect(minted.statusCode).toBe(201);
+    expect(minted.headers['cache-control']).toBe('no-store');
+    expect(minted.json().url).toBe(
+      'https://my-box-3000.sandbox.outpost.dev/_outpost/authorize',
+    );
+    expect(minted.json().grant).toMatch(/^[A-Za-z0-9_-]{40,}$/);
+    expect(minted.json().expiresAt).toEqual(expect.any(Number));
+  });
+
+  it('does not mint a grant for a stopped sandbox', async () => {
+    const { app, db, id, cookie } = makeApp(true);
+    await app.inject({
+      method: 'POST',
+      url: `/api/sandboxes/${id}/ports`,
+      headers: { cookie },
+      payload: { port: 3000 },
+    });
+    updateSandboxStatus(db, id, 'stopped');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/sandboxes/${id}/ports/3000/grant`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({ error: 'sandbox is not running' });
   });
 
   it('404 when the sandbox does not exist', async () => {

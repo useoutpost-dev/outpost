@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import websocket from '@fastify/websocket';
+import type { LookupFunction } from 'node:net';
 import { OutpostError } from '@outpost/shared-api';
 import { runMigrations } from './db/migrate.js';
 import type { Db } from './db/client.js';
@@ -18,6 +19,7 @@ import { registerCollectorRoutes } from './telemetry/collector.js';
 import { registerUsageRoutes } from './telemetry/routes.js';
 import { registerPortRoutes } from './proxy/routes.js';
 import { registerPreviewProxy, type ResolveTarget } from './proxy/proxy.js';
+import { PreviewGrantStore } from './proxy/grants.js';
 import { registerEventRoutes } from './events/routes.js';
 
 export interface BuildAppOptions {
@@ -41,8 +43,10 @@ export interface BuildAppOptions {
    * tests inject a resolver pointing at a fake upstream server.
    */
   resolveTarget?: ResolveTarget;
-  /** TEST-ONLY: allow loopback proxy targets so fake upstreams on 127.0.0.1 work. */
-  allowLoopbackTargets?: boolean;
+  /** @internal Test-only DNS lookup for fake upstream socket tests. */
+  proxyLookup?: LookupFunction;
+  /** Injectable clock-backed store for preview-grant tests. */
+  previewGrants?: PreviewGrantStore;
 }
 
 /**
@@ -66,8 +70,10 @@ export function buildApp(opts: BuildAppOptions) {
     collectorToken,
     previewDomain,
     resolveTarget,
-    allowLoopbackTargets,
+    proxyLookup,
+    previewGrants: injectedPreviewGrants,
   } = opts;
+  const previewGrants = injectedPreviewGrants ?? new PreviewGrantStore();
   const app = Fastify({
     logger: {
       serializers: {
@@ -83,14 +89,10 @@ export function buildApp(opts: BuildAppOptions) {
 
   app.setErrorHandler((err, _req, reply) => {
     if (OutpostError.is(err)) {
-      // Server-side faults (>=500) carry a diagnostic cause (e.g. the Fly
-      // response status/body) that is deliberately kept out of the client JSON.
-      // Log it here or PROVIDER_ERROR/PROVIDER_UNAVAILABLE are undebuggable.
+      // Log only allowlisted metadata. Provider causes can contain raw Fly
+      // response bodies and machine environment values, so they stay private.
       if (err.httpStatus >= 500) {
-        app.log.error(
-          { err, code: err.code, cause: err.cause },
-          `OutpostError ${err.code}: ${err.safeMessage}`,
-        );
+        app.log.error({ code: err.code, httpStatus: err.httpStatus }, 'OutpostError');
       }
       return reply.status(err.httpStatus).send(err.toJSON());
     }
@@ -120,8 +122,9 @@ export function buildApp(opts: BuildAppOptions) {
     registerPreviewProxy(app, {
       db,
       previewDomain,
+      previewGrants,
       resolveTarget,
-      allowLoopbackTargets,
+      lookup: proxyLookup,
     });
   }
 
@@ -132,7 +135,7 @@ export function buildApp(opts: BuildAppOptions) {
   registerCollectorRoutes(app, { db, collectorToken });
   registerUsageRoutes(app, { db });
   registerEventRoutes(app, { db });
-  registerPortRoutes(app, { db, previewDomain });
+  registerPortRoutes(app, { db, previewDomain, previewGrants });
 
   // WS route registration must be inside a plugin scope that has @fastify/websocket
   // loaded; register after the plugin above so `{ websocket: true }` is recognized.

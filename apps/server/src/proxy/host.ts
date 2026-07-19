@@ -27,8 +27,13 @@ const LABEL_RE = /^([a-z][a-z0-9-]*)-(\d{2,5})$/;
 export function parsePreviewHost(host: string, previewDomain: string): PreviewHostMatch | null {
   if (!host || !previewDomain) return null;
 
-  // Strip an optional :port suffix (IPv6 literals never appear as preview hosts).
-  const hostname = host.split(':')[0]?.toLowerCase();
+  // Preview hosts are DNS names, never IPv6 literals. Accept either a bare
+  // hostname or one numeric authority port, and reject malformed suffixes.
+  const authority = /^([^:]+)(?::(\d{1,5}))?$/.exec(host);
+  if (!authority) return null;
+  const authorityPort = authority[2] === undefined ? undefined : Number(authority[2]);
+  if (authorityPort !== undefined && (authorityPort < 1 || authorityPort > 65535)) return null;
+  const hostname = authority[1]?.toLowerCase();
   if (!hostname) return null;
 
   const domain = previewDomain.toLowerCase();

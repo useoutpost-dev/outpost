@@ -146,7 +146,7 @@ export function SandboxList({ onOpenTerminal }: SandboxListProps) {
                   Nothing running yet
                 </h2>
                 <p className="mx-auto mb-5 max-w-[340px] font-body text-[13.5px] leading-relaxed text-ash">
-                  Spin up an isolated cloud sandbox to run Claude Code in. It boots clean and
+                  Spin up an isolated cloud sandbox to run Codex in. It boots clean and
                   tears down when you destroy it.
                 </p>
                 <div className="inline-flex items-center gap-2 font-mono text-[11px] tracking-[0.06em] text-beacon">

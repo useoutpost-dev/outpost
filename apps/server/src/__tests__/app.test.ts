@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OutpostError } from '@outpost/shared-api';
 import { buildApp } from '../index.js';
 import { createSession } from '../auth/auth.repo.js';
@@ -65,5 +65,28 @@ describe('server app', () => {
     expect(res.statusCode).toBe(500);
     expect(res.json()).toEqual({ error: { code: 'INTERNAL', message: 'Internal server error' } });
     expect(res.body).not.toContain('secret internal detail');
+  });
+
+  it('logs only allowlisted metadata for server-side OutpostError failures', async () => {
+    const { app, cookie } = authedApp();
+    const logError = vi.spyOn(app.log, 'error').mockImplementation(() => {});
+    app.get('/provider-failure', () => {
+      throw new OutpostError('PROVIDER_ERROR', 502, 'provider failed', {
+        cause: new Error('secret upstream response body'),
+      });
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provider-failure',
+      headers: { cookie },
+    });
+
+    expect(res.statusCode).toBe(502);
+    expect(logError).toHaveBeenCalledWith(
+      { code: 'PROVIDER_ERROR', httpStatus: 502 },
+      'OutpostError',
+    );
+    expect(JSON.stringify(logError.mock.calls)).not.toContain('secret upstream response body');
   });
 });

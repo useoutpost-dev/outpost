@@ -9,6 +9,10 @@ describe('parsePreviewHost', () => {
     ['my-cool-box-8080.sandbox.outpost.dev', DOMAIN, { name: 'my-cool-box', port: 8080 }],
     // Host header with :port suffix stripped first.
     ['my-sandbox-3000.sandbox.outpost.dev:443', DOMAIN, { name: 'my-sandbox', port: 3000 }],
+    // Malformed authority suffixes are rejected rather than truncated.
+    ['my-sandbox-3000.sandbox.outpost.dev:evil', DOMAIN, null],
+    ['my-sandbox-3000.sandbox.outpost.dev:99999', DOMAIN, null],
+    ['my-sandbox-3000.sandbox.outpost.dev:443:evil', DOMAIN, null],
     // Case-insensitive.
     ['MY-Sandbox-3000.Sandbox.Outpost.Dev', DOMAIN, { name: 'my-sandbox', port: 3000 }],
     // Wrong domain.

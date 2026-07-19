@@ -117,9 +117,9 @@ export const ports = sqliteTable(
       .$defaultFn(() => new Date()),
   },
   (t) => ({
-    sandboxPortIdx: uniqueIndex('ports_sandbox_port_idx').on(t.sandboxId, t.port),
+    sandboxPortUniq: uniqueIndex('ports_sandbox_port_uniq').on(t.sandboxId, t.port),
   }),
 );
 
 export type PortRow = typeof ports.$inferSelect;
-export type NewPortRow = typeof ports.$inferInsert;
+export type PortInsert = typeof ports.$inferInsert;

@@ -164,8 +164,8 @@
         }
       },
       "indexes": {
-        "ports_sandbox_port_idx": {
-          "name": "ports_sandbox_port_idx",
+        "ports_sandbox_port_uniq": {
+          "name": "ports_sandbox_port_uniq",
           "columns": [
             "sandbox_id",
             "port"

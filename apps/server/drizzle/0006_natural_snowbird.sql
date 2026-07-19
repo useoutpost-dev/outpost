@@ -7,4 +7,4 @@ CREATE TABLE `ports` (
 	`updated_at` integer NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `ports_sandbox_port_idx` ON `ports` (`sandbox_id`,`port`);
+CREATE UNIQUE INDEX `ports_sandbox_port_uniq` ON `ports` (`sandbox_id`,`port`);

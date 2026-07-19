@@ -11,6 +11,7 @@ import {
   listPorts,
   setPublic,
 } from './ports.repo.js';
+import type { PreviewGrantStore } from './grants.js';
 
 /**
  * Ports the proxy must never expose. 8022 is the in-sandbox terminal daemon —
@@ -44,9 +45,9 @@ function previewUrl(
  */
 export function registerPortRoutes(
   app: FastifyInstance,
-  deps: { db: Db; previewDomain?: string },
+  deps: { db: Db; previewDomain?: string; previewGrants?: PreviewGrantStore },
 ): void {
-  const { db, previewDomain } = deps;
+  const { db, previewDomain, previewGrants } = deps;
 
   app.get('/api/sandboxes/:id/ports', async (req, reply) => {
     const { id } = req.params as { id: string };
@@ -88,7 +89,7 @@ export function registerPortRoutes(
         url: previewUrl(sandbox.name, row.port, previewDomain),
       });
     } catch (err) {
-      // Unique-constraint (ports_sandbox_port_idx) → already registered.
+      // Unique-constraint (ports_sandbox_port_uniq) → already registered.
       if (err instanceof Error && /UNIQUE|constraint/i.test(err.message)) {
         return reply.status(409).send({ error: 'port already registered' });
       }
@@ -142,5 +143,34 @@ export function registerPortRoutes(
       req.log.error(err, 'DELETE ports failed');
       return reply.status(500).send({ error: 'internal error' });
     }
+  });
+
+  app.post('/api/sandboxes/:id/ports/:port/grant', async (req, reply) => {
+    const { id, port: portParam } = req.params as { id: string; port: string };
+    const sandbox = findSandboxById(db, id);
+    if (!sandbox) return reply.status(404).send({ error: 'sandbox not found' });
+    if (sandbox.status !== 'running') {
+      return reply.status(409).send({ error: 'sandbox is not running' });
+    }
+
+    const port = Number(portParam);
+    if (!Number.isInteger(port) || port < 1 || port > 65535 || DENIED_PORTS.has(port)) {
+      return reply.status(422).send({ error: 'invalid port' });
+    }
+    if (!previewDomain || !previewGrants) {
+      return reply.status(409).send({ error: 'preview domain not configured' });
+    }
+
+    const existing = getPort(db, id, port);
+    if (!existing) return reply.status(404).send({ error: 'port not found' });
+    if (existing.public) return reply.status(409).send({ error: 'public port does not need a grant' });
+
+    const { code, expiresAt } = previewGrants.mint({ sandboxId: id, port });
+    const host = `${sandbox.name}-${port}.${previewDomain}`;
+    const url = `https://${host}/_outpost/authorize`;
+    return reply
+      .header('cache-control', 'no-store')
+      .status(201)
+      .send({ url, grant: code, expiresAt });
   });
 }
