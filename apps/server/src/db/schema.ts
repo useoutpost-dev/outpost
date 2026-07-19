@@ -1,4 +1,4 @@
-import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const events = sqliteTable('events', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -100,3 +100,26 @@ export const usage = sqliteTable(
 
 export type UsageRow = typeof usage.$inferSelect;
 export type UsageInsert = typeof usage.$inferInsert;
+
+export const ports = sqliteTable(
+  'ports',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    sandboxId: text('sandbox_id').notNull(),
+    port: integer('port').notNull(),
+    // public defaults OFF; flipping it is an explicit, confirmed user action
+    public: integer('public', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => ({
+    sandboxPortIdx: uniqueIndex('ports_sandbox_port_idx').on(t.sandboxId, t.port),
+  }),
+);
+
+export type PortRow = typeof ports.$inferSelect;
+export type NewPortRow = typeof ports.$inferInsert;
