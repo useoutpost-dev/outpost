@@ -78,7 +78,7 @@ declare module 'fastify' {
   }
 }
 
-function tokenFromRequest(req: FastifyRequest): string | undefined {
+export function tokenFromRequest(req: FastifyRequest): string | undefined {
   const cookies = (req as FastifyRequest & { cookies?: Record<string, string | undefined> }).cookies;
   return cookies?.[SESSION_COOKIE_NAME];
 }
