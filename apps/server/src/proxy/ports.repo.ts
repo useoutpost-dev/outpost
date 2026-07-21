@@ -40,6 +40,12 @@ export function deletePort(db: Db, sandboxId: string, port: number): void {
     .run();
 }
 
+/** Remove all port rows for a sandbox. Called during sandbox destroy so no
+ *  orphaned rows accumulate in the `ports` table after teardown. */
+export function deletePortsForSandbox(db: Db, sandboxId: string): void {
+  db.delete(ports).where(eq(ports.sandboxId, sandboxId)).run();
+}
+
 /**
  * Append a port lifecycle event, mirroring appendSandboxEvent in service.ts.
  * Payload carries only the port number — never any credential/target material.
