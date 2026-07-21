@@ -11,6 +11,7 @@ import {
   listSandboxes,
   type SandboxRow,
 } from './sandboxes.repo.js';
+import { deletePortsForSandbox } from '../proxy/ports.repo.js';
 
 type SandboxEventKind =
   | 'sandbox.creating'
@@ -278,6 +279,9 @@ export function createSandboxService(deps: SandboxServiceDeps) {
       provider: 'fly',
       providerRef: row.providerRef ?? null,
     });
+
+    // Clean up any registered ports so no orphaned rows remain after destroy.
+    deletePortsForSandbox(db, id);
 
     // Terminal upstream is gone once the machine is destroyed; tear it down.
     onTeardown?.(id);

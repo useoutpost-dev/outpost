@@ -194,6 +194,9 @@ function stripSessionCookie(cookieHeader: string): string {
 export function registerPreviewProxy(app: FastifyInstance, deps: PreviewProxyDeps): void {
   const { db, previewDomain, previewGrants, resolveTarget, lookup } = deps;
   const upgradeLimiter = new PreviewUpgradeLimiter();
+  // A custom lookup bypasses createGuardedLookup's private-range enforcement,
+  // so it is refused in EVERY environment except NODE_ENV=test — staging or any
+  // other non-test env that passes proxyLookup fails loudly here at build time.
   if (lookup && process.env.NODE_ENV !== 'test') {
     throw new Error('custom preview proxy DNS lookup is test-only');
   }
@@ -577,12 +580,17 @@ function forward(source: WebSocket, target: WebSocket, data: unknown, isBinary: 
   }
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function safeRespond(res: ServerResponse, status: number, message: string): void {
+  const safeMessage = escapeHtml(message);
   try {
     if (!res.headersSent) {
       res.writeHead(status, { 'content-type': 'text/html; charset=utf-8' });
     }
-    res.end(`<!doctype html><title>${status}</title><h1>${status} ${message}</h1>`);
+    res.end(`<!doctype html><title>${status}</title><h1>${status} ${safeMessage}</h1>`);
   } catch {
     try { res.destroy(); } catch { /* ignore */ }
   }

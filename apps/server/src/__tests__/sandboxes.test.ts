@@ -3,6 +3,7 @@ import { buildApp } from '../index.js';
 import { events } from '../db/schema.js';
 import { createSession } from '../auth/auth.repo.js';
 import { generateSessionToken, SESSION_COOKIE_NAME } from '../auth/session.js';
+import { createPort, listPorts } from '../proxy/ports.repo.js';
 import {
   makeTestDb,
   testGithubConfig,
@@ -158,6 +159,21 @@ describe('sandbox service — destroy', () => {
     const created = await service.create({ name: 'double-destroy' });
     await service.destroy(created.id);
     await expect(service.destroy(created.id)).rejects.toMatchObject({ code: 'CONFLICT', httpStatus: 409 });
+  });
+
+  it('destroy removes all port rows for the sandbox', async () => {
+    const db = makeTestDb();
+    const service = makeFakeSandboxService(db);
+    const created = await service.create({ name: 'ports-cleanup' });
+
+    // Seed two port rows directly via the repo
+    createPort(db, { sandboxId: created.id, port: 3000 });
+    createPort(db, { sandboxId: created.id, port: 8080 });
+    expect(listPorts(db, created.id)).toHaveLength(2);
+
+    await service.destroy(created.id);
+
+    expect(listPorts(db, created.id)).toHaveLength(0);
   });
 });
 
